@@ -113,6 +113,7 @@ import org.apache.kafka.common.message.ExpireDelegationTokenResponseData;
 import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.FindCoordinatorRequestData;
+import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
 import org.apache.kafka.common.message.HeartbeatRequestData;
 import org.apache.kafka.common.message.HeartbeatResponseData;
 import org.apache.kafka.common.message.IncrementalAlterConfigsRequestData;
@@ -218,6 +219,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
@@ -526,6 +528,10 @@ public class RequestResponseTest {
         checkRequest(createAlterClientQuotasRequest(), true);
         checkErrorResponse(createAlterClientQuotasRequest(), unknownServerException, true);
         checkResponse(createAlterClientQuotasResponse(), 0, true);
+
+        checkRequest(createGetTelemetrySubscriptionRequest(), true);
+        checkErrorResponse(createGetTelemetrySubscriptionRequest(), unknownServerException, true);
+        checkResponse(createGetTelemetrySubscriptionResponse(), 0, true);
     }
 
     @Test
@@ -2879,6 +2885,21 @@ public class RequestResponseTest {
                     .setEntityType(ClientQuotaEntity.USER)
                     .setEntityName("user")))));
         return new AlterClientQuotasResponse(data);
+    }
+
+    private GetTelemetrySubscriptionRequest createGetTelemetrySubscriptionRequest() {
+        Uuid id = Uuid.randomUuid();
+        return new GetTelemetrySubscriptionRequest.Builder(id).build((short) 0);
+    }
+
+    private GetTelemetrySubscriptionResponse createGetTelemetrySubscriptionResponse() {
+        GetTelemetrySubscriptionResponseData data = new GetTelemetrySubscriptionResponseData()
+                .setClientInstanceId(Uuid.randomUuid())
+                .setSubscriptionId(new Random().nextInt())
+                .setRequestedMetrics(Arrays.asList("*"))
+                .setErrorCode(Errors.NONE.code());
+
+        return new GetTelemetrySubscriptionResponse(data);
     }
 
     private DescribeProducersRequest createDescribeProducersRequest(short version) {

@@ -24,7 +24,7 @@ import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
-import org.apache.kafka.common.protocol.MessageContext;
+import org.apache.kafka.common.protocol.Errors;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +33,7 @@ public class GetTelemetrySubscriptionRequest extends AbstractRequest {
     public static class Builder extends AbstractRequest.Builder<GetTelemetrySubscriptionRequest> {
         Uuid clientInstanceId;
 
-        private Builder(Uuid id) {
+        public Builder(Uuid id) {
             super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION);
             this.clientInstanceId = id;
         }
@@ -54,17 +54,26 @@ public class GetTelemetrySubscriptionRequest extends AbstractRequest {
     }
 
     @Override
-    public AbstractResponse getErrorResponse(int throttleTimeMs, Throwable e) {
-        return null;
+    public GetTelemetrySubscriptionResponse getErrorResponse(int throttleTimeMs, Throwable e) {
+        GetTelemetrySubscriptionResponseData responseData = new GetTelemetrySubscriptionResponseData().
+                setErrorCode(Errors.forException(e).code());
+        if (version() >= 1) {
+            responseData.setThrottleTimeMs(throttleTimeMs);
+        }
+        return new GetTelemetrySubscriptionResponse(responseData);
     }
 
     @Override
-    public ApiMessage data() {
+    public GetTelemetrySubscriptionRequestData data() {
         return data;
     }
 
-    public static GetTelemetrySubscriptionRequest parse(ByteBuffer buffer, short version, MessageContext context) {
+    public Uuid getClientInstanceId() {
+        return this.data.clientInstanceId();
+    }
+
+    public static GetTelemetrySubscriptionRequest parse(ByteBuffer buffer, short version) {
         return new GetTelemetrySubscriptionRequest(new GetTelemetrySubscriptionRequestData(
-                new ByteBufferAccessor(buffer), version, context), version);
+                new ByteBufferAccessor(buffer), version), version);
     }
 }

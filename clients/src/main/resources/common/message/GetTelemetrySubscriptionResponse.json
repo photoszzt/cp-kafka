@@ -21,7 +21,7 @@
   "flexibleVersions": "0+",
   "fields": [
     {
-      "name": "ThrottleTime",
+      "name": "ThrottleTimeMs",
       "type": "int32",
       "versions": "0+",
       "about": "Standard throttling"

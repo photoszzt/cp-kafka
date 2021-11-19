@@ -18,7 +18,9 @@
 package org.apache.kafka.common.requests;
 
 import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
-import org.apache.kafka.common.protocol.*;
+import org.apache.kafka.common.protocol.ApiKeys;
+import org.apache.kafka.common.protocol.ByteBufferAccessor;
+import org.apache.kafka.common.protocol.Errors;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -46,7 +48,7 @@ public class GetTelemetrySubscriptionResponse  extends AbstractResponse {
 
     @Override
     public int throttleTimeMs() {
-        return data.throttleTime();
+        return data.throttleTimeMs();
     }
 
     public boolean hasError() {
@@ -57,8 +59,8 @@ public class GetTelemetrySubscriptionResponse  extends AbstractResponse {
         return Errors.forCode(data.errorCode());
     }
 
-    public static GetTelemetrySubscriptionResponse parse(ByteBuffer buffer, short version, MessageContext context) {
+    public static GetTelemetrySubscriptionResponse parse(ByteBuffer buffer, short version) {
         return new GetTelemetrySubscriptionResponse(new GetTelemetrySubscriptionResponseData(
-                new ByteBufferAccessor(buffer), version, context));
+                new ByteBufferAccessor(buffer), version));
     }
 }
