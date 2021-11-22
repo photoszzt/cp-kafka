@@ -109,6 +109,7 @@ public enum ApiKeys {
     DESCRIBE_TRANSACTIONS(ApiMessageType.DESCRIBE_TRANSACTIONS),
     LIST_TRANSACTIONS(ApiMessageType.LIST_TRANSACTIONS),
     GET_TELEMETRY_SUBSCRIPTION(ApiMessageType.GET_TELEMETRY_SUBSCRIPTION, true, true),
+    PUSH_TELEMETRY(ApiMessageType.PUSH_TELEMETRY, true, true),
     ALLOCATE_PRODUCER_IDS(ApiMessageType.ALLOCATE_PRODUCER_IDS, true, true);
 
     private static final Map<ApiMessageType.ListenerType, EnumSet<ApiKeys>> APIS_BY_LISTENER =

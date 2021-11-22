@@ -14,29 +14,18 @@
 // limitations under the License.
 
 {
-  "apiKey": 10116,
-  "type": "response",
-  "name": "GetTelemetrySubscriptionResponse",
+  "apiKey": 10117,
+  "type": "request",
+  "listeners": ["zkBroker", "broker"],
+  "name": "PushTelemetryRequest",
   "validVersions": "0",
   "flexibleVersions": "0+",
   "fields": [
     {
-      "name": "ThrottleTimeMs",
-      "type": "int32",
-      "versions": "0+",
-      "about": "Standard throttling"
-    },
-    {
-      "name": "ErrorCode",
-      "type": "int16",
-      "versions": "0+",
-      "about": "Error code"
-    },
-    {
       "name": "ClientInstanceId",
       "type": "uuid",
       "versions": "0+",
-      "about": "Assigned client instance id"
+      "about": "Unique id for this client instance, Must be set to 0 on the very first request"
     },
     {
       "name": "SubscriptionId",
@@ -45,22 +34,22 @@
       "about": "Unique identifier for the current subscription"
     },
     {
-      "name": "AcceptedCompressionTypes",
-      "type": "[]int8",
+      "name": "Terminating",
+      "type": "bool",
       "versions": "0+",
-      "about": "Compression types that broker accepts for the PushTelemetryRequest"
+      "about": "Client is terminating the connection"
     },
     {
-      "name": "PushIntervalMs",
-      "type": "int32",
+      "name": "CompressionType",
+      "type": "int8",
       "versions": "0+",
-      "about": "Configured push interval"
+      "about": "Compression codec used to encode the metrics"
     },
     {
-      "name": "RequestedMetrics",
-      "type": "[]string",
+      "name": "Metrics",
+      "type": "bytes",
       "versions": "0+",
-      "about": "Requested metrics prefix string match. Empty array: No metrics subscribed, Array[0] empty string: All metrics subscribed."
+      "about": "Metrics data, possibly compressed"
     }
   ]
 }

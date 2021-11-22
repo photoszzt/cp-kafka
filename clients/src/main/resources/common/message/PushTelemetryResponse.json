@@ -14,9 +14,9 @@
 // limitations under the License.
 
 {
-  "apiKey": 10116,
+  "apiKey": 10117,
   "type": "response",
-  "name": "GetTelemetrySubscriptionResponse",
+  "name": "PushTelemetryResponse",
   "validVersions": "0",
   "flexibleVersions": "0+",
   "fields": [
@@ -31,36 +31,6 @@
       "type": "int16",
       "versions": "0+",
       "about": "Error code"
-    },
-    {
-      "name": "ClientInstanceId",
-      "type": "uuid",
-      "versions": "0+",
-      "about": "Assigned client instance id"
-    },
-    {
-      "name": "SubscriptionId",
-      "type": "int32",
-      "versions": "0+",
-      "about": "Unique identifier for the current subscription"
-    },
-    {
-      "name": "AcceptedCompressionTypes",
-      "type": "[]int8",
-      "versions": "0+",
-      "about": "Compression types that broker accepts for the PushTelemetryRequest"
-    },
-    {
-      "name": "PushIntervalMs",
-      "type": "int32",
-      "versions": "0+",
-      "about": "Configured push interval"
-    },
-    {
-      "name": "RequestedMetrics",
-      "type": "[]string",
-      "versions": "0+",
-      "about": "Requested metrics prefix string match. Empty array: No metrics subscribed, Array[0] empty string: All metrics subscribed."
     }
   ]
 }

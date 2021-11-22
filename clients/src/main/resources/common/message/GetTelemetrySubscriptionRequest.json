@@ -14,11 +14,9 @@
 // limitations under the License.
 
 {
-  "apiKey": 10117,
+  "apiKey": 10116,
   "type": "request",
-  "listeners": [
-    "broker"
-  ],
+  "listeners": ["zkBroker", "broker"],
   "name": "GetTelemetrySubscriptionRequest",
   "validVersions": "0",
   "flexibleVersions": "0+",

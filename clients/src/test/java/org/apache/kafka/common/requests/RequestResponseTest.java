@@ -161,6 +161,7 @@ import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.EpochEnd
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.OffsetForLeaderTopicResult;
 import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.message.ProduceResponseData;
+import org.apache.kafka.common.message.PushTelemetryResponseData;
 import org.apache.kafka.common.message.RenewDelegationTokenRequestData;
 import org.apache.kafka.common.message.RenewDelegationTokenResponseData;
 import org.apache.kafka.common.message.SaslAuthenticateRequestData;
@@ -204,6 +205,7 @@ import org.apache.kafka.common.security.auth.KafkaPrincipal;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.security.token.delegation.DelegationToken;
 import org.apache.kafka.common.security.token.delegation.TokenInformation;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.common.utils.SecurityUtils;
 import org.apache.kafka.common.utils.Utils;
 import org.junit.jupiter.api.Test;
@@ -532,6 +534,9 @@ public class RequestResponseTest {
         checkRequest(createGetTelemetrySubscriptionRequest(), true);
         checkErrorResponse(createGetTelemetrySubscriptionRequest(), unknownServerException, true);
         checkResponse(createGetTelemetrySubscriptionResponse(), 0, true);
+        checkRequest(createPushTelemetryRequest(), true);
+        checkErrorResponse(createPushTelemetryRequest(), unknownServerException, true);
+        checkResponse(createPushTelemetryResponse(), 0, true);
     }
 
     @Test
@@ -2900,6 +2905,20 @@ public class RequestResponseTest {
                 .setErrorCode(Errors.NONE.code());
 
         return new GetTelemetrySubscriptionResponse(data);
+    }
+
+    private PushTelemetryRequest createPushTelemetryRequest() {
+        byte[] data = "something".getBytes();
+        byte compType = 123;
+        return new PushTelemetryRequest.Builder(
+                Uuid.randomUuid(), 0, false, compType, new Bytes(data)).build((short) 0);
+    }
+
+    private PushTelemetryResponse createPushTelemetryResponse() {
+        PushTelemetryResponseData data = new PushTelemetryResponseData()
+                .setErrorCode(Errors.NONE.code());
+
+        return new PushTelemetryResponse(data);
     }
 
     private DescribeProducersRequest createDescribeProducersRequest(short version) {

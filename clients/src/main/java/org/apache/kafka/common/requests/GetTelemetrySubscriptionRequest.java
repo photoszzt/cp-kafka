@@ -22,7 +22,6 @@ import org.apache.kafka.common.message.GetTelemetrySubscriptionRequestData;
 import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
 
 import org.apache.kafka.common.protocol.ApiKeys;
-import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
 

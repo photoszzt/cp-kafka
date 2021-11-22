@@ -228,6 +228,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         case ApiKeys.ALLOCATE_PRODUCER_IDS => handleAllocateProducerIdsRequest(request)
         case ApiKeys.DESCRIBE_QUORUM => forwardToControllerOrFail(request)
         case ApiKeys.GET_TELEMETRY_SUBSCRIPTION => handleGetTelemetrySubscriptionRequest(request)
+        case ApiKeys.PUSH_TELEMETRY => handlePushTelemetryRequest(request)
         case _ => throw new IllegalStateException(s"No handler for request api key ${request.header.apiKey}")
       }
     } catch {
@@ -3460,8 +3461,19 @@ class KafkaApis(val requestChannel: RequestChannel,
       )
   }
 
+  // Just a place holder for now.
   def handleGetTelemetrySubscriptionRequest(request: RequestChannel.Request): Unit = {
     val subscriptionRequest = request.body[GetTelemetrySubscriptionRequest]
+    val id = subscriptionRequest.getClientInstanceId
+    if (id == -1) {
+      requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
+        subscriptionRequest.getErrorResponse(requestThrottleMs, Errors.INVALID_REQUEST.exception))
+    }
+  }
+
+  // Just a place holder for now.
+  def handlePushTelemetryRequest(request: RequestChannel.Request): Unit = {
+    val subscriptionRequest = request.body[PushTelemetryRequest]
     val id = subscriptionRequest.getClientInstanceId
     if (id == -1) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
