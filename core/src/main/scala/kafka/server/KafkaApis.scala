@@ -3464,8 +3464,8 @@ class KafkaApis(val requestChannel: RequestChannel,
   // Just a place holder for now.
   def handleGetTelemetrySubscriptionRequest(request: RequestChannel.Request): Unit = {
     val subscriptionRequest = request.body[GetTelemetrySubscriptionRequest]
-    val id = subscriptionRequest.getClientInstanceId
-    if (id == -1) {
+
+    if (subscriptionRequest.getClientInstanceId == Uuid.ZERO_UUID) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         subscriptionRequest.getErrorResponse(requestThrottleMs, Errors.INVALID_REQUEST.exception))
     }
@@ -3473,11 +3473,11 @@ class KafkaApis(val requestChannel: RequestChannel,
 
   // Just a place holder for now.
   def handlePushTelemetryRequest(request: RequestChannel.Request): Unit = {
-    val subscriptionRequest = request.body[PushTelemetryRequest]
-    val id = subscriptionRequest.getClientInstanceId
-    if (id == -1) {
+    val pushTelemetryRequest = request.body[PushTelemetryRequest]
+
+    if (pushTelemetryRequest.getClientInstanceId == Uuid.ZERO_UUID) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
-        subscriptionRequest.getErrorResponse(requestThrottleMs, Errors.INVALID_REQUEST.exception))
+        pushTelemetryRequest.getErrorResponse(requestThrottleMs, Errors.INVALID_REQUEST.exception))
     }
   }
 
