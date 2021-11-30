@@ -17,7 +17,7 @@
   "apiKey": 10116,
   "type": "request",
   "listeners": ["zkBroker", "broker"],
-  "name": "GetTelemetrySubscriptionRequest",
+  "name": "GetTelemetrySubscriptionsRequest",
   "validVersions": "0",
   "flexibleVersions": "0+",
   "fields": [
@@ -25,7 +25,7 @@
       "name": "ClientInstanceId",
       "type": "uuid",
       "versions": "0+",
-      "about": "Unique id for this client instance, Must be set to 0 on the very first request"
+      "about": "Unique id for this client instance, must be set to 0 on the very first request."
     }
   ]
 }

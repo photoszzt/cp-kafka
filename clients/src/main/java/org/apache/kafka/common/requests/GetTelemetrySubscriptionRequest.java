@@ -18,8 +18,8 @@
 package org.apache.kafka.common.requests;
 
 import org.apache.kafka.common.Uuid;
-import org.apache.kafka.common.message.GetTelemetrySubscriptionRequestData;
-import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
+import org.apache.kafka.common.message.GetTelemetrySubscriptionsRequestData;
+import org.apache.kafka.common.message.GetTelemetrySubscriptionsResponseData;
 
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
@@ -30,40 +30,38 @@ import java.nio.ByteBuffer;
 public class GetTelemetrySubscriptionRequest extends AbstractRequest {
 
     public static class Builder extends AbstractRequest.Builder<GetTelemetrySubscriptionRequest> {
-        Uuid clientInstanceId;
+        private Uuid clientInstanceId;
 
         public Builder(Uuid id) {
-            super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION);
+            super(ApiKeys.GET_TELEMETRY_SUBSCRIPTIONS);
             this.clientInstanceId = id;
         }
 
         @Override
         public GetTelemetrySubscriptionRequest build(short version) {
-            GetTelemetrySubscriptionRequestData data = new GetTelemetrySubscriptionRequestData();
+            GetTelemetrySubscriptionsRequestData data = new GetTelemetrySubscriptionsRequestData();
             data.setClientInstanceId(clientInstanceId);
             return new GetTelemetrySubscriptionRequest(data, version);
         }
     }
 
-    private final GetTelemetrySubscriptionRequestData data;
+    private final GetTelemetrySubscriptionsRequestData data;
 
-    public GetTelemetrySubscriptionRequest(GetTelemetrySubscriptionRequestData data, short version) {
-        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION, version);
+    public GetTelemetrySubscriptionRequest(GetTelemetrySubscriptionsRequestData data, short version) {
+        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTIONS, version);
         this.data = data;
     }
 
     @Override
     public GetTelemetrySubscriptionResponse getErrorResponse(int throttleTimeMs, Throwable e) {
-        GetTelemetrySubscriptionResponseData responseData = new GetTelemetrySubscriptionResponseData().
-                setErrorCode(Errors.forException(e).code());
-        if (version() >= 1) {
-            responseData.setThrottleTimeMs(throttleTimeMs);
-        }
+        GetTelemetrySubscriptionsResponseData responseData = new GetTelemetrySubscriptionsResponseData()
+                .setErrorCode(Errors.forException(e).code())
+                .setThrottleTimeMs(throttleTimeMs);
         return new GetTelemetrySubscriptionResponse(responseData);
     }
 
     @Override
-    public GetTelemetrySubscriptionRequestData data() {
+    public GetTelemetrySubscriptionsRequestData data() {
         return data;
     }
 
@@ -72,7 +70,7 @@ public class GetTelemetrySubscriptionRequest extends AbstractRequest {
     }
 
     public static GetTelemetrySubscriptionRequest parse(ByteBuffer buffer, short version) {
-        return new GetTelemetrySubscriptionRequest(new GetTelemetrySubscriptionRequestData(
+        return new GetTelemetrySubscriptionRequest(new GetTelemetrySubscriptionsRequestData(
                 new ByteBufferAccessor(buffer), version), version);
     }
 }

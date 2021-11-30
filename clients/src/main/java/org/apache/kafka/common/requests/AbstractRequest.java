@@ -303,7 +303,7 @@ public abstract class AbstractRequest implements AbstractRequestResponse {
                 return ListTransactionsRequest.parse(buffer, apiVersion);
             case ALLOCATE_PRODUCER_IDS:
                 return AllocateProducerIdsRequest.parse(buffer, apiVersion);
-            case GET_TELEMETRY_SUBSCRIPTION:
+            case GET_TELEMETRY_SUBSCRIPTIONS:
                 return GetTelemetrySubscriptionRequest.parse(buffer, apiVersion);
             case PUSH_TELEMETRY:
                 return PushTelemetryRequest.parse(buffer, apiVersion);

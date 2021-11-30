@@ -247,7 +247,7 @@ public abstract class AbstractResponse implements AbstractRequestResponse {
                 return ListTransactionsResponse.parse(responseBuffer, version);
             case ALLOCATE_PRODUCER_IDS:
                 return AllocateProducerIdsResponse.parse(responseBuffer, version);
-            case GET_TELEMETRY_SUBSCRIPTION:
+            case GET_TELEMETRY_SUBSCRIPTIONS:
                 return GetTelemetrySubscriptionResponse.parse(responseBuffer, version);
             case PUSH_TELEMETRY:
                 return PushTelemetryResponse.parse(responseBuffer, version);

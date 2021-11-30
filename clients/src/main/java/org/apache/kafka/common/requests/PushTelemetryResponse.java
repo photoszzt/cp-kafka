@@ -30,7 +30,7 @@ public class PushTelemetryResponse  extends AbstractResponse {
     private final PushTelemetryResponseData data;
 
     public PushTelemetryResponse(PushTelemetryResponseData data) {
-        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION);
+        super(ApiKeys.PUSH_TELEMETRY);
         this.data = data;
     }
 

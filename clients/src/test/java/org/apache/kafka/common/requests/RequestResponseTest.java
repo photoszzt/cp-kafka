@@ -113,7 +113,6 @@ import org.apache.kafka.common.message.ExpireDelegationTokenResponseData;
 import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.FindCoordinatorRequestData;
-import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
 import org.apache.kafka.common.message.HeartbeatRequestData;
 import org.apache.kafka.common.message.HeartbeatResponseData;
 import org.apache.kafka.common.message.IncrementalAlterConfigsRequestData;
@@ -2898,20 +2897,16 @@ public class RequestResponseTest {
     }
 
     private GetTelemetrySubscriptionResponse createGetTelemetrySubscriptionResponse() {
-        GetTelemetrySubscriptionResponseData data = new GetTelemetrySubscriptionResponseData()
-                .setClientInstanceId(Uuid.randomUuid())
-                .setSubscriptionId(new Random().nextInt())
-                .setRequestedMetrics(Arrays.asList("*"))
-                .setErrorCode(Errors.NONE.code());
-
-        return new GetTelemetrySubscriptionResponse(data);
+        List<String> metrics = new ArrayList<>();
+        int subscriptionId =  new Random().nextInt();
+        return new GetTelemetrySubscriptionResponse(0, Errors.NONE.code(), Uuid.randomUuid(),
+                subscriptionId, 60, false, metrics);
     }
 
     private PushTelemetryRequest createPushTelemetryRequest() {
         byte[] data = "something".getBytes();
-        byte compType = 123;
         return new PushTelemetryRequest.Builder(
-                Uuid.randomUuid(), 0, false, compType, new Bytes(data)).build((short) 0);
+                Uuid.randomUuid(), 0, false, CompressionType.NONE, new Bytes(data)).build((short) 0);
     }
 
     private PushTelemetryResponse createPushTelemetryResponse() {

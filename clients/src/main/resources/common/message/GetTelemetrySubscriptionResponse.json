@@ -16,7 +16,7 @@
 {
   "apiKey": 10116,
   "type": "response",
-  "name": "GetTelemetrySubscriptionResponse",
+  "name": "GetTelemetrySubscriptionsResponse",
   "validVersions": "0",
   "flexibleVersions": "0+",
   "fields": [
@@ -54,7 +54,13 @@
       "name": "PushIntervalMs",
       "type": "int32",
       "versions": "0+",
-      "about": "Configured push interval"
+      "about": "Allowed metrics push interval in milliseconds"
+    },
+    {
+      "name": "DeltaTemporality",
+      "type": "bool",
+      "versions": "0+",
+      "about": "Flag to indicate monotonic/counter metrics are to be emitted as deltas or cumulative values"
     },
     {
       "name": "RequestedMetrics",

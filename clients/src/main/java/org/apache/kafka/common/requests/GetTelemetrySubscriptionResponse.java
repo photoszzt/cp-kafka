@@ -17,25 +17,49 @@
 
 package org.apache.kafka.common.requests;
 
-import org.apache.kafka.common.message.GetTelemetrySubscriptionResponseData;
+import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.message.GetTelemetrySubscriptionsResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
+import org.apache.kafka.common.record.CompressionType;
 
 import java.nio.ByteBuffer;
+
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 public class GetTelemetrySubscriptionResponse  extends AbstractResponse {
-    private final GetTelemetrySubscriptionResponseData data;
+    private final GetTelemetrySubscriptionsResponseData data;
 
-    public GetTelemetrySubscriptionResponse(GetTelemetrySubscriptionResponseData data) {
-        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION);
+    public GetTelemetrySubscriptionResponse(GetTelemetrySubscriptionsResponseData data) {
+        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTIONS);
         this.data = data;
     }
 
+    public GetTelemetrySubscriptionResponse(int throttleTime,
+                                            short errorCode,
+                                            Uuid clientInstanceId,
+                                            int subscriptionId,
+                                            int pushInterval,
+                                            boolean deltaValues,
+                                            List<String> metrics) {
+        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTIONS);
+        this.data =  new GetTelemetrySubscriptionsResponseData()
+                .setThrottleTimeMs(throttleTime)
+                .setErrorCode(errorCode)
+                .setClientInstanceId(clientInstanceId)
+                .setAcceptedCompressionTypes(getSupportedCompressionTypes())
+                .setSubscriptionId(subscriptionId)
+                .setPushIntervalMs(pushInterval)
+                .setDeltaTemporality(deltaValues)
+                .setRequestedMetrics(metrics);
+    }
+
     @Override
-    public GetTelemetrySubscriptionResponseData data() {
+    public GetTelemetrySubscriptionsResponseData data() {
         return data;
     }
 
@@ -60,7 +84,15 @@ public class GetTelemetrySubscriptionResponse  extends AbstractResponse {
     }
 
     public static GetTelemetrySubscriptionResponse parse(ByteBuffer buffer, short version) {
-        return new GetTelemetrySubscriptionResponse(new GetTelemetrySubscriptionResponseData(
+        return new GetTelemetrySubscriptionResponse(new GetTelemetrySubscriptionsResponseData(
                 new ByteBufferAccessor(buffer), version));
+    }
+
+    private List<Byte> getSupportedCompressionTypes() {
+        List<Byte> compressionTypes = new ArrayList<>();
+        for (CompressionType c : CompressionType.values()) {
+            compressionTypes.add((byte) c.id);
+        }
+        return compressionTypes;
     }
 }

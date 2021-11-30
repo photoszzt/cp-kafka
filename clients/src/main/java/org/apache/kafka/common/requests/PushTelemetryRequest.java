@@ -24,6 +24,7 @@ import org.apache.kafka.common.message.PushTelemetryResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
+import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.utils.Bytes;
 
 import java.nio.ByteBuffer;
@@ -32,13 +33,13 @@ public class PushTelemetryRequest extends AbstractRequest {
 
     public static class Builder extends AbstractRequest.Builder<PushTelemetryRequest> {
         Uuid clientInstanceId;
-        int  subscriptionId;
+        int subscriptionId;
         boolean terminating;
-        byte compressionType;
+        CompressionType compressionType;
         Bytes metricsData;
 
-        public Builder(Uuid clientInstanceId, int subscriptionId, boolean terminating, byte compressionType, Bytes metricsData) {
-            super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION);
+        public Builder(Uuid clientInstanceId, int subscriptionId, boolean terminating, CompressionType compressionType, Bytes metricsData) {
+            super(ApiKeys.PUSH_TELEMETRY);
             this.clientInstanceId = clientInstanceId;
             this.subscriptionId = subscriptionId;
             this.terminating = terminating;
@@ -52,7 +53,7 @@ public class PushTelemetryRequest extends AbstractRequest {
             data.setClientInstanceId(clientInstanceId);
             data.setSubscriptionId(subscriptionId);
             data.setTerminating(terminating);
-            data.setCompressionType(compressionType);
+            data.setCompressionType((byte) compressionType.id);
             data.setMetrics(metricsData.get());
             return new PushTelemetryRequest(data, version);
         }
@@ -61,7 +62,7 @@ public class PushTelemetryRequest extends AbstractRequest {
     private final PushTelemetryRequestData data;
 
     public PushTelemetryRequest(PushTelemetryRequestData data, short version) {
-        super(ApiKeys.GET_TELEMETRY_SUBSCRIPTION, version);
+        super(ApiKeys.PUSH_TELEMETRY, version);
         this.data = data;
     }
 
@@ -69,9 +70,7 @@ public class PushTelemetryRequest extends AbstractRequest {
     public PushTelemetryResponse getErrorResponse(int throttleTimeMs, Throwable e) {
         PushTelemetryResponseData responseData = new PushTelemetryResponseData().
                 setErrorCode(Errors.forException(e).code());
-        if (version() >= 1) {
-            responseData.setThrottleTimeMs(throttleTimeMs);
-        }
+        responseData.setThrottleTimeMs(throttleTimeMs);
         return new PushTelemetryResponse(responseData);
     }
 
