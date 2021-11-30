@@ -22,6 +22,7 @@ import kafka.admin.{AdminOperationException, AdminUtils, BrokerMetadata, RackAwa
 import kafka.common.TopicAlreadyMarkedForDeletionException
 import kafka.controller.ReplicaAssignment
 import kafka.log.LogConfig
+import kafka.metrics.clientmetrics.ClientMetricsConfig
 import kafka.server.{ConfigEntityName, ConfigType, DynamicConfig}
 import kafka.utils._
 import kafka.utils.Implicits._
@@ -481,6 +482,19 @@ class AdminZkClient(zkClient: KafkaZkClient) extends Logging {
     */
   def validateBrokerConfig(configs: Properties): Unit = {
     DynamicConfig.Broker.validate(configs)
+  }
+
+  /**
+   * Update the config for an existing topic and create a change notification so the change will propagate to other brokers
+   *
+   * @param topic: The topic for which configs are being changed
+   * @param configs: The final set of configs that will be applied to the topic. If any new configs need to be added or
+   *                 existing configs need to be deleted, it should be done prior to invoking this API
+   *
+   */
+  def changeClientMetricsConfig(clientMetricsSubscriptionName: String, configs: Properties): Unit = {
+    ClientMetricsConfig.validateConfig(clientMetricsSubscriptionName, configs)
+    changeEntityConfig(ConfigType.ClientMetrics, clientMetricsSubscriptionName, configs)
   }
 
   private def changeEntityConfig(rootEntityType: String, fullSanitizedEntityName: String, configs: Properties): Unit = {

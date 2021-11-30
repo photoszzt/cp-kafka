@@ -147,6 +147,7 @@ class KafkaServer(
   val zkClientConfig: ZKClientConfig = KafkaServer.zkClientConfigFromKafkaConfig(config)
   private var _zkClient: KafkaZkClient = null
   private var configRepository: ZkConfigRepository = null
+  private var clientMetricsManager: ClientMetricsManager = null
 
   val correlationId: AtomicInteger = new AtomicInteger(0)
   val brokerMetaPropsFile = "meta.properties"
@@ -196,6 +197,9 @@ class KafkaServer(
         /* setup zookeeper */
         initZkClient(time)
         configRepository = new ZkConfigRepository(new AdminZkClient(zkClient))
+
+        /* initialize client metrics manager */
+        clientMetricsManager = new ClientMetricsManager
 
         /* initialize features */
         _featureChangeListener = new FinalizedFeatureChangeListener(featureCache, _zkClient)
@@ -428,6 +432,7 @@ class KafkaServer(
         /* start dynamic config manager */
         dynamicConfigHandlers = Map[String, ConfigHandler](ConfigType.Topic -> new TopicConfigHandler(logManager, config, quotaManagers, Some(kafkaController)),
                                                            ConfigType.Client -> new ClientIdConfigHandler(quotaManagers),
+                                                           ConfigType.ClientMetrics -> new ClientMetricsConfigHandler(clientMetricsManager),
                                                            ConfigType.User -> new UserConfigHandler(quotaManagers, credentialProvider),
                                                            ConfigType.Broker -> new BrokerConfigHandler(config, quotaManagers),
                                                            ConfigType.Ip -> new IpConfigHandler(socketServer.connectionQuotas))

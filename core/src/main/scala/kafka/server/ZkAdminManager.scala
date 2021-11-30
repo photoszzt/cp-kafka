@@ -406,6 +406,7 @@ class ZkAdminManager(val config: KafkaConfig,
         resource.`type` match {
           case ConfigResource.Type.TOPIC => alterTopicConfigs(resource, validateOnly, configProps, configEntriesMap)
           case ConfigResource.Type.BROKER => alterBrokerConfigs(resource, validateOnly, configProps, configEntriesMap)
+          case ConfigResource.Type.CLIENT_METRICS => alterClientMetricsSubscriptions(resource, validateOnly, configProps, configEntriesMap)
           case resourceType =>
             throw new InvalidRequestException(s"AlterConfigs is only supported for topics and brokers, but resource type is $resourceType")
         }
@@ -465,6 +466,18 @@ class ZkAdminManager(val config: KafkaConfig,
         this.config.dynamicConfig.toPersistentProps(configProps, perBrokerConfig))
     }
 
+    resource -> ApiError.NONE
+  }
+
+  private def alterClientMetricsSubscriptions(resource: ConfigResource, validateOnly: Boolean,
+                                              configProps: Properties, configEntriesMap: Map[String, String]): (ConfigResource, ApiError) = {
+    val subscriptionName = resource.name
+    validateConfigPolicy(resource, configEntriesMap)
+    if (!validateOnly) {
+      info(s"Updating client metrics subscription ${subscriptionName} with new configuration : ${toLoggableProps(resource, configProps).mkString(",")}")
+      adminZkClient.changeClientMetricsConfig(subscriptionName,
+        this.config.dynamicConfig.toPersistentProps(configProps, false))
+    }
     resource -> ApiError.NONE
   }
 

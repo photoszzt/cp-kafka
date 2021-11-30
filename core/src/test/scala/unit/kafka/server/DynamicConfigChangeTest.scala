@@ -289,6 +289,36 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @Test
+  def testClientMetricsConfigChange(): Unit = {
+    assertTrue(this.servers.head.dynamicConfigHandlers.contains(ConfigType.ClientMetrics),
+      "Should contain a ConfigHandler for " + ConfigType.ClientMetrics)
+
+    val user: String = "user1"
+    val clientId: String = "client1"
+    val configEntityName: String = "subscription-1"
+
+    val props = new Properties()
+    props.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "1000")
+    props.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
+
+    // Update the properties.
+    adminZkClient.changeClientMetricsConfig(configEntityName, props)
+
+    // Verification
+    val quotaManagers = servers.head.dataPlaneRequestProcessor.quotas
+    TestUtils.retry(10000) {
+      val overrideProducerQuota = quotaManagers.produce.quota(user, clientId)
+      val overrideConsumerQuota = quotaManagers.fetch.quota(user, clientId)
+
+      assertEquals(Quota.upperBound(1000),
+        overrideProducerQuota, s"User $user clientId $clientId must have overridden producer quota of 1000")
+      assertEquals(Quota.upperBound(2000),
+        overrideConsumerQuota, s"User $user clientId $clientId must have overridden consumer quota of 2000")
+    }
+  }
+
+
+  @Test
   def testConfigChangeOnNonExistingTopic(): Unit = {
     val topic = TestUtils.tempTopic()
     val logProps = new Properties()
