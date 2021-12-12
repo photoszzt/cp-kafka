@@ -14,7 +14,7 @@
 // limitations under the License.
 
 {
-  "apiKey": 10116,
+  "apiKey": 68,
   "type": "response",
   "name": "GetTelemetrySubscriptionsResponse",
   "validVersions": "0",

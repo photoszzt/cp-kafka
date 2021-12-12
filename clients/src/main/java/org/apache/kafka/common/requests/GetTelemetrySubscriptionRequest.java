@@ -32,9 +32,9 @@ public class GetTelemetrySubscriptionRequest extends AbstractRequest {
     public static class Builder extends AbstractRequest.Builder<GetTelemetrySubscriptionRequest> {
         private Uuid clientInstanceId;
 
-        public Builder(Uuid id) {
+        public Builder(Uuid clientInstanceId) {
             super(ApiKeys.GET_TELEMETRY_SUBSCRIPTIONS);
-            this.clientInstanceId = id;
+            this.clientInstanceId = clientInstanceId;
         }
 
         @Override
