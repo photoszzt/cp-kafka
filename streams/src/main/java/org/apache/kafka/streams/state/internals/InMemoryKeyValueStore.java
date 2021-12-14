@@ -21,6 +21,12 @@ import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.StateStoreContext;
+import org.apache.kafka.streams.processor.internals.StoreToProcessorContextAdapter;
+import org.apache.kafka.streams.query.Position;
+import org.apache.kafka.streams.query.PositionBound;
+import org.apache.kafka.streams.query.Query;
+import org.apache.kafka.streams.query.QueryResult;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.slf4j.Logger;
@@ -40,9 +46,12 @@ public class InMemoryKeyValueStore implements KeyValueStore<Bytes, byte[]> {
     private final String name;
     private final NavigableMap<Bytes, byte[]> map = new TreeMap<>();
     private volatile boolean open = false;
+    private StateStoreContext context;
+    private Position position;
 
     public InMemoryKeyValueStore(final String name) {
         this.name = name;
+        this.position = Position.emptyPosition();
     }
 
     @Override
@@ -63,6 +72,13 @@ public class InMemoryKeyValueStore implements KeyValueStore<Bytes, byte[]> {
     }
 
     @Override
+    public void init(final StateStoreContext context,
+                     final StateStore root) {
+        init(StoreToProcessorContextAdapter.adapt(context), root);
+        this.context = context;
+    }
+
+    @Override
     public boolean persistent() {
         return false;
     }
@@ -70,6 +86,24 @@ public class InMemoryKeyValueStore implements KeyValueStore<Bytes, byte[]> {
     @Override
     public boolean isOpen() {
         return open;
+    }
+
+    Position getPosition() {
+        return position;
+    }
+
+    @Override
+    public <R> QueryResult<R> query(
+        final Query<R> query,
+        final PositionBound positionBound,
+        final boolean collectExecutionInfo) {
+
+        return StoreQueryUtils.handleBasicQueries(
+            query,
+            positionBound,
+            collectExecutionInfo,
+            this
+        );
     }
 
     @Override
@@ -98,6 +132,8 @@ public class InMemoryKeyValueStore implements KeyValueStore<Bytes, byte[]> {
         } else {
             map.put(key, value);
         }
+
+        StoreQueryUtils.updatePosition(position, context);
     }
 
     @Override
