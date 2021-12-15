@@ -24,6 +24,9 @@ object ClientMetricsConfig {
     val checkSum = computeCheckSum
     def getCheckSum = checkSum
     def getId = subscriptionGroup
+    def getPushIntervalMs = pushIntervalMs
+    def getClientMatchingPatterns = clientMatchingPatterns
+    def getSubscribedMetrics = subscribedMetrics
   }
 
   object ClientMetrics {
@@ -61,6 +64,10 @@ object ClientMetricsConfig {
       val propKeys = properties.keySet.asScala.map(_.asInstanceOf[String])
       val unknownProperties = propKeys.filter(!names.contains(_))
       require(unknownProperties.isEmpty, s"Unknown client metric configuration: $unknownProperties")
+      require(properties.contains(ClientMetrics.ClientMatchPattern), s"Missing parameter ${ClientMatchPattern}")
+      require(properties.contains(ClientMetrics.SubscriptionMetrics), s"Missing parameter ${SubscriptionMetrics}")
+      require(properties.contains(ClientMetrics.PushIntervalMs), s"Missing parameter ${PushIntervalMs}")
+
       // Validate the property values
       configDef.parse(properties)
     }
@@ -69,6 +76,7 @@ object ClientMetricsConfig {
   private val subscriptionMap = new ConcurrentHashMap[String, SubscriptionGroup]
 
   def getClientSubscriptionGroup(groupId :String): SubscriptionGroup  =  subscriptionMap.get(groupId)
+  def getSubscriptionGroupCount() = subscriptionMap.size()
 
   def createSubscriptionGroup(groupId :String, properties: Properties): Unit = {
     val parsedProperties = ClientMetrics.validateProperties(properties)

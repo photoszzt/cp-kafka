@@ -24,6 +24,8 @@ import java.util.Properties
 import java.util.concurrent.ExecutionException
 import kafka.integration.KafkaServerTestHarness
 import kafka.log.LogConfig._
+import kafka.metrics.clientmetrics.ClientMetricsConfig
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics
 import kafka.utils._
 import kafka.server.Constants._
 import kafka.zk.ConfigEntityChangeNotificationZNode
@@ -293,28 +295,41 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     assertTrue(this.servers.head.dynamicConfigHandlers.contains(ConfigType.ClientMetrics),
       "Should contain a ConfigHandler for " + ConfigType.ClientMetrics)
 
-    val user: String = "user1"
-    val clientId: String = "client1"
+    val nGroups = ClientMetricsConfig.getSubscriptionGroupCount()
+
     val configEntityName: String = "subscription-1"
+    val metrics = List("org.apache.kafka/client.producer.partition.queue.", "org.apache.kafka/client.producer.partition.latency")
+    val clientMatchingPattern = List("client_instance_id=b69cc35a-7a54-4790-aa69-cc2bd4ee4538")
+    val pushInterval = 30 * 1000 // 60 milli seconds
 
     val props = new Properties()
-    props.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "1000")
-    props.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
+    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, configEntityName)
+    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics.asJava)
+    props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchingPattern.asJava)
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
 
     // Update the properties.
     adminZkClient.changeClientMetricsConfig(configEntityName, props)
 
-    // Verification
-    val quotaManagers = servers.head.dataPlaneRequestProcessor.quotas
-    TestUtils.retry(10000) {
-      val overrideProducerQuota = quotaManagers.produce.quota(user, clientId)
-      val overrideConsumerQuota = quotaManagers.fetch.quota(user, clientId)
-
-      assertEquals(Quota.upperBound(1000),
-        overrideProducerQuota, s"User $user clientId $clientId must have overridden producer quota of 1000")
-      assertEquals(Quota.upperBound(2000),
-        overrideConsumerQuota, s"User $user clientId $clientId must have overridden consumer quota of 2000")
+    // Wait until notification is delivered and processed
+    val maxWait = 2 * 60 * 1000 // 2 minutes wait time
+    var waitedTime = 0
+    while (ClientMetricsConfig.getSubscriptionGroupCount() < nGroups && waitedTime < maxWait) {
+      Thread.sleep(200)
+      waitedTime += 200
     }
+
+    // Verification: (wait until notification is delivered and processed)
+    val sgroup = ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
+    assertTrue(sgroup != null && sgroup.getId.equals(configEntityName))
+
+    assertTrue(sgroup.getPushIntervalMs == pushInterval)
+
+    assertTrue(sgroup.getSubscribedMetrics.size == metrics.size)
+    metrics.foreach( a => sgroup.getSubscribedMetrics.contains(a))
+
+    assertTrue(sgroup.getClientMatchingPatterns.size == clientMatchingPattern.size)
+    clientMatchingPattern.foreach(a => sgroup.getClientMatchingPatterns.contains(a))
   }
 
 
