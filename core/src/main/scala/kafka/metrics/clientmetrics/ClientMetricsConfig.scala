@@ -1,10 +1,12 @@
 package kafka.metrics.clientmetrics
 
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.configDef
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM
 import org.apache.kafka.common.config.ConfigDef.Type.{INT, LIST, STRING}
 import org.apache.kafka.common.errors.InvalidRequestException
 
+import java.util
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
 import scala.jdk.CollectionConverters.CollectionHasAsScala
@@ -64,12 +66,9 @@ object ClientMetricsConfig {
       val propKeys = properties.keySet.asScala.map(_.asInstanceOf[String])
       val unknownProperties = propKeys.filter(!names.contains(_))
       require(unknownProperties.isEmpty, s"Unknown client metric configuration: $unknownProperties")
-      require(properties.contains(ClientMetrics.ClientMatchPattern), s"Missing parameter ${ClientMatchPattern}")
-      require(properties.contains(ClientMetrics.SubscriptionMetrics), s"Missing parameter ${SubscriptionMetrics}")
-      require(properties.contains(ClientMetrics.PushIntervalMs), s"Missing parameter ${PushIntervalMs}")
-
-      // Validate the property values
-      configDef.parse(properties)
+      require(properties.containsKey(ClientMetrics.ClientMatchPattern), s"Missing parameter ${ClientMatchPattern}")
+      require(properties.containsKey(ClientMetrics.SubscriptionMetrics), s"Missing parameter ${SubscriptionMetrics}")
+      require(properties.containsKey(ClientMetrics.PushIntervalMs), s"Missing parameter ${PushIntervalMs}")
     }
   }
 
@@ -78,14 +77,18 @@ object ClientMetricsConfig {
   def getClientSubscriptionGroup(groupId :String): SubscriptionGroup  =  subscriptionMap.get(groupId)
   def getSubscriptionGroupCount() = subscriptionMap.size()
 
+  private def toList(prop: Any): List[String] = {
+    val value: util.List[_] = prop.asInstanceOf[util.List[_]]
+    val valueList: util.ArrayList[String] = new util.ArrayList[String]
+    value.forEach(x => valueList.add(x.asInstanceOf[String]))
+    valueList.asScala.toList
+  }
+
   def createSubscriptionGroup(groupId :String, properties: Properties): Unit = {
-    val parsedProperties = ClientMetrics.validateProperties(properties)
-    val metrics = parsedProperties.get(ClientMetrics.SubscriptionMetrics).asInstanceOf[List[String]]
-    val clientMatches = parsedProperties.get(ClientMetrics.ClientMatchPattern).asInstanceOf[List[String]]
-    val pushInterval = parsedProperties.get(ClientMetrics.PushIntervalMs).asInstanceOf[String].toInt
-    subscriptionMap.put(groupId,  new SubscriptionGroup(groupId, metrics, clientMatches, pushInterval))
+    val parsed = configDef.parse(properties)
+    subscriptionMap.put(groupId, new SubscriptionGroup(groupId, toList(parsed.get(ClientMetrics.SubscriptionMetrics)),
+      toList(parsed.get(ClientMetrics.ClientMatchPattern)), parsed.get(ClientMetrics.PushIntervalMs).asInstanceOf[Int]))
   }
 
   def validateConfig(name :String, configs: Properties): Unit = ClientMetrics.validate(name, configs)
-
 }
