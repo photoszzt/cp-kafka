@@ -289,6 +289,15 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     verifyConnectionQuota(overrideQuotaIp, QuotaConfigs.IP_CONNECTION_RATE_DEFAULT)
   }
 
+  private def updateClientSubscription(subscriptionId :String, properties: Properties, waitingCondition: () => Boolean): Unit = {
+    // Update the properties.
+    adminZkClient.changeClientMetricsConfig(subscriptionId, properties)
+
+    // Wait until notification is delivered and processed
+    val maxWaitTime = 60 * 1000 // 1 minute wait time
+    TestUtils.waitUntilTrue(waitingCondition, "Failed to update the client metrics subscription", maxWaitTime)
+  }
+
   @Test
   def testClientMetricsConfigChange(): Unit = {
     assertTrue(this.servers.head.dynamicConfigHandlers.contains(ConfigType.ClientMetrics),
@@ -305,28 +314,35 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchingPattern)
     props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
 
-    // Update the properties.
-    adminZkClient.changeClientMetricsConfig(configEntityName, props)
-
-    // Wait until notification is delivered and processed
-    val maxWaitTime = 2 * 60 * 1000 // 2 minutes wait time
-    TestUtils.waitUntilTrue(() => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null, "Failed to create client metrics subscription group", maxWaitTime)
-
-    // Verification: (wait until notification is delivered and processed)
+    // ********  Test-1 Create the new client subscription *********
+    updateClientSubscription(configEntityName, props, () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
     val sgroup = ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
-    assertTrue(sgroup != null && sgroup.getId.equals(configEntityName))
-
     assertTrue(sgroup.getPushIntervalMs == pushInterval)
+    assertTrue(sgroup.getSubscribedMetrics.size == 2 && sgroup.getSubscribedMetrics.mkString(",").equals(metrics))
+    assertTrue(sgroup.getClientMatchingPatterns.size == 1 && sgroup.getClientMatchingPatterns.mkString(",").equals(clientMatchingPattern))
 
-    val sgMetrics = sgroup.getSubscribedMetrics
-    assertTrue(sgMetrics.size == 2)
-    assertTrue(sgMetrics.mkString(",").equals(metrics))
+    // *******  Test-2 Update the existing metric subscriptions  *********
+    val updatedMetrics = "org.apache.kafka/client.producer.partition.latency"
+    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, updatedMetrics)
+    updateClientSubscription(configEntityName, props, () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.size == 1)
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.mkString(",").equals(updatedMetrics))
 
-    val sgPatterns = sgroup.getClientMatchingPatterns
-    assertTrue(sgPatterns.size == 1)
-    assertTrue(sgPatterns.mkString(",")equals(clientMatchingPattern))
+    // ****** Test-3 restart the server and make sure that client metric subscription data is intact
+    ClientMetricsConfig.clearClientSubscriptions()
+    assertTrue(ClientMetricsConfig.getSubscriptionGroupCount() == 0)
+
+    val server = servers.head
+    server.shutdown()
+    server.startup()
+    assertTrue(ClientMetricsConfig.getSubscriptionGroupCount() != 0)
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.mkString(",").equals(updatedMetrics))
+
+    // *******  Test-4 Delete the metric subscriptions  *********
+    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, "")
+    updateClientSubscription(configEntityName, props, () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
   }
-
 
   @Test
   def testConfigChangeOnNonExistingTopic(): Unit = {

@@ -7,7 +7,7 @@ import java.util.Properties
 class ClientMetricsManager {
 
   def updateSubscription(groupId :String, properties :Properties) = {
-    ClientMetricsConfig.createSubscriptionGroup(groupId, properties)
+    ClientMetricsConfig.updateClientSubscription(groupId, properties)
     invalidateCache();
   }
 

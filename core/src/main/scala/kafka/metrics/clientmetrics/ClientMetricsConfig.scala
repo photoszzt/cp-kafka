@@ -75,7 +75,8 @@ object ClientMetricsConfig {
   private val subscriptionMap = new ConcurrentHashMap[String, SubscriptionGroup]
 
   def getClientSubscriptionGroup(groupId :String): SubscriptionGroup  =  subscriptionMap.get(groupId)
-  def getSubscriptionGroupCount() = subscriptionMap.size()
+  def clearClientSubscriptions(): Unit = subscriptionMap.clear
+  def getSubscriptionGroupCount() = subscriptionMap.size
 
   private def toList(prop: Any): List[String] = {
     val value: util.List[_] = prop.asInstanceOf[util.List[_]]
@@ -84,10 +85,17 @@ object ClientMetricsConfig {
     valueList.asScala.toList
   }
 
-  def createSubscriptionGroup(groupId :String, properties: Properties): Unit = {
+  def updateClientSubscription(groupId :String, properties: Properties): Unit = {
     val parsed = configDef.parse(properties)
-    subscriptionMap.put(groupId, new SubscriptionGroup(groupId, toList(parsed.get(ClientMetrics.SubscriptionMetrics)),
-      toList(parsed.get(ClientMetrics.ClientMatchPattern)), parsed.get(ClientMetrics.PushIntervalMs).asInstanceOf[Int]))
+    val metrics = toList(parsed.get(ClientMetrics.SubscriptionMetrics))
+    val clientMatchPattern = toList(parsed.get(ClientMetrics.ClientMatchPattern))
+    val pushInterval = parsed.get(ClientMetrics.PushIntervalMs).asInstanceOf[Int]
+
+    if (metrics.size == 0 || metrics.mkString("").isEmpty) {
+      subscriptionMap.remove(groupId)
+    } else {
+      subscriptionMap.put(groupId, new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval))
+    }
   }
 
   def validateConfig(name :String, configs: Properties): Unit = ClientMetrics.validate(name, configs)
