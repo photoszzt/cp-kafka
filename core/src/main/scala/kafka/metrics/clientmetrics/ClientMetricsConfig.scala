@@ -9,7 +9,7 @@ import org.apache.kafka.common.errors.InvalidRequestException
 import java.util
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
-import scala.jdk.CollectionConverters.CollectionHasAsScala
+import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
 object ClientMetricsConfig {
@@ -63,9 +63,7 @@ object ClientMetricsConfig {
 
     def validateProperties(properties :Properties) = {
       val names = configDef.names
-      val propKeys = properties.keySet.asScala.map(_.asInstanceOf[String])
-      val unknownProperties = propKeys.filter(!names.contains(_))
-      require(unknownProperties.isEmpty, s"Unknown client metric configuration: $unknownProperties")
+      properties.keySet().forEach(x => require(names.contains(x), s"Unknown client metric configuration: $x"))
       require(properties.containsKey(ClientMetrics.ClientMatchPattern), s"Missing parameter ${ClientMatchPattern}")
       require(properties.containsKey(ClientMetrics.SubscriptionMetrics), s"Missing parameter ${SubscriptionMetrics}")
       require(properties.containsKey(ClientMetrics.PushIntervalMs), s"Missing parameter ${PushIntervalMs}")
@@ -80,9 +78,9 @@ object ClientMetricsConfig {
 
   private def toList(prop: Any): List[String] = {
     val value: util.List[_] = prop.asInstanceOf[util.List[_]]
-    val valueList: util.ArrayList[String] = new util.ArrayList[String]
-    value.forEach(x => valueList.add(x.asInstanceOf[String]))
-    valueList.asScala.toList
+    val valueList =  new ListBuffer[String]()
+    value.forEach(x => valueList += x.asInstanceOf[String])
+    valueList.toList
   }
 
   def updateClientSubscription(groupId :String, properties: Properties): Unit = {
