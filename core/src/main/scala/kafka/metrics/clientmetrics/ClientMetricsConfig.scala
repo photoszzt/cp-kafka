@@ -4,13 +4,13 @@ import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.configDef
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM
 import org.apache.kafka.common.config.ConfigDef.Type.{INT, LIST, STRING}
-import org.apache.kafka.common.errors.InvalidRequestException
+import org.apache.kafka.common.errors.{InvalidConfigurationException, InvalidRequestException}
 
 import java.util
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.util.Random
 
 object ClientMetricsConfig {
 
@@ -18,17 +18,22 @@ object ClientMetricsConfig {
                            subscribedMetrics: List[String],
                            clientMatchingPatterns: List[String],
                            pushIntervalMs: Int) {
-
-    // TODO: Compute the checksum based on the current subscription
-    def computeCheckSum :Long = {
-      Random.nextLong()
-    }
-    val checkSum = computeCheckSum
-    def getCheckSum = checkSum
     def getId = subscriptionGroup
     def getPushIntervalMs = pushIntervalMs
-    def getClientMatchingPatterns = clientMatchingPatterns
+    def getClientMatchingPatterns = parseClientMatchingPatterns(clientMatchingPatterns)
     def getSubscribedMetrics = subscribedMetrics
+
+    private def parseClientMatchingPatterns(patterns: List[String]) : Map[String, String] = {
+      val patternsMap = mutable.Map[String, String]()
+      patterns.foreach(x =>  {
+        val nameValuePair = x.split("=")
+        if (nameValuePair.size != 2) {
+          throw new InvalidConfigurationException("Illegal client matching pattern: " + x)
+        }
+        patternsMap += (nameValuePair(0) -> nameValuePair(1))
+      })
+      patternsMap.toMap
+    }
   }
 
   object ClientMetrics {
@@ -73,8 +78,9 @@ object ClientMetricsConfig {
   private val subscriptionMap = new ConcurrentHashMap[String, SubscriptionGroup]
 
   def getClientSubscriptionGroup(groupId :String): SubscriptionGroup  =  subscriptionMap.get(groupId)
-  def clearClientSubscriptions(): Unit = subscriptionMap.clear
-  def getSubscriptionGroupCount() = subscriptionMap.size
+  def clearClientSubscriptions() = subscriptionMap.clear
+  def getSubscriptionGroupCount = subscriptionMap.size
+  def getClientSubscriptionGroups = subscriptionMap.values
 
   private def toList(prop: Any): List[String] = {
     val value: util.List[_] = prop.asInstanceOf[util.List[_]]
@@ -83,16 +89,23 @@ object ClientMetricsConfig {
     valueList.toList
   }
 
-  def updateClientSubscription(groupId :String, properties: Properties): Unit = {
+  def updateClientSubscription(groupId :String, properties: Properties, cache: ClientMetricsCache): Unit = {
     val parsed = configDef.parse(properties)
     val metrics = toList(parsed.get(ClientMetrics.SubscriptionMetrics))
     val clientMatchPattern = toList(parsed.get(ClientMetrics.ClientMatchPattern))
     val pushInterval = parsed.get(ClientMetrics.PushIntervalMs).asInstanceOf[Int]
 
     if (metrics.size == 0 || metrics.mkString("").isEmpty) {
-      subscriptionMap.remove(groupId)
+      val sgroup = subscriptionMap.remove(groupId)
+      cache.invalidate(sgroup, null, ClientMetricsCacheOperation.CM_SUBSCRIPTION_DELETED)
     } else {
-      subscriptionMap.put(groupId, new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval))
+      val newGroup = new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval)
+      val oldGroup = subscriptionMap.put(groupId, newGroup)
+      if (oldGroup != null) {
+        cache.invalidate(oldGroup, newGroup, ClientMetricsCacheOperation.CM_SUBSCRIPTION_UPDATED)
+      } else {
+        cache.invalidate(oldGroup, newGroup, ClientMetricsCacheOperation.CM_SUBSCRIPTION_ADDED)
+      }
     }
   }
 
