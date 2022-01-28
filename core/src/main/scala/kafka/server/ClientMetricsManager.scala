@@ -1,20 +1,22 @@
 package kafka.server
 
-import kafka.metrics.clientmetrics.{ClientInstanceSelector, ClientInstanceState, ClientMetricsCache, ClientMetricsConfig}
+import kafka.metrics.clientmetrics.{CmClientInformation, CmClientInstanceState, ClientMetricsCache, ClientMetricsConfig}
 import kafka.network.RequestChannel
-import kafka.server.ClientMetricsManager.getSupportedCompressionTypes
+import kafka.server.ClientMetricsManager.{CM_CACHE_MAX_SIZE, getSupportedCompressionTypes}
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.message.GetTelemetrySubscriptionsResponseData
 import org.apache.kafka.common.record.CompressionType
 import org.apache.kafka.common.requests.{GetTelemetrySubscriptionRequest, GetTelemetrySubscriptionResponse}
 
-import java.util.{Calendar, Properties}
+import java.util.Properties
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
-
 object ClientMetricsManager {
-  private val _instance =  new ClientMetricsManager
+  val CM_CACHE_GC_INTERVAL = 5 * 60 * 1000 // 5 minutes
+  val CM_CACHE_MAX_SIZE = 1024
+
+  private val _instance = new ClientMetricsManager
   def get = _instance
 
   def getSupportedCompressionTypes: List[java.lang.Byte] = {
@@ -26,32 +28,31 @@ object ClientMetricsManager {
 }
 
 class ClientMetricsManager {
-  val clientInstanceCache = new ClientMetricsCache
-  var cmCacheGCTs = Calendar.getInstance.getTime
+  val clientInstanceCache = ClientMetricsCache.getInstance
+  def getCacheSize = clientInstanceCache.getSize
+  def clearCache() = clientInstanceCache.clear()
+  def getClientInstance(id: Uuid) = clientInstanceCache.get(id)
 
   def processGetSubscriptionRequest(request: RequestChannel.Request,
-                                    config: KafkaConfig, throttleMs: Int): GetTelemetrySubscriptionResponse  = {
+                                    config: KafkaConfig, throttleMs: Int): GetTelemetrySubscriptionResponse = {
     val subscriptionRequest = request.body[GetTelemetrySubscriptionRequest]
     var clientInstanceId = subscriptionRequest.getClientInstanceId
     if (clientInstanceId == null || clientInstanceId == Uuid.ZERO_UUID) {
       clientInstanceId = Uuid.randomUuid()
     }
-    var instanceState = clientInstanceCache.get(clientInstanceId.toString)
-    if (instanceState == null) {
-      instanceState = ClientInstanceState(clientInstanceId,
-                                          ClientInstanceSelector(request, clientInstanceId.toString),
-                                          ClientMetricsConfig.getClientSubscriptionGroups)
-      clientInstanceCache.put(instanceState)
+    var clientInstance = getClientInstance(clientInstanceId)
+    if (clientInstance == null) {
+      clientInstance = createClientInstance(clientInstanceId, CmClientInformation(request, clientInstanceId.toString))
     }
 
     val data =  new GetTelemetrySubscriptionsResponseData()
         .setThrottleTimeMs(throttleMs)
         .setClientInstanceId(clientInstanceId)
-        .setSubscriptionId(instanceState.getSubscriptionId.toInt) // ?? TODO: should we use LONG instead of down casting into int?
+        .setSubscriptionId(clientInstance.getSubscriptionId.toInt) // ?? TODO: should we use LONG instead of down casting into int?
         .setAcceptedCompressionTypes(getSupportedCompressionTypes.asJava)
-        .setPushIntervalMs(instanceState.getPushIntervalMs)
+        .setPushIntervalMs(clientInstance.getPushIntervalMs)
         .setDeltaTemporality(config.clientMetricsDeltaTemporality)
-        .setRequestedMetrics(instanceState.metrics.asJava)
+        .setRequestedMetrics(clientInstance.metrics.asJava)
 
     new GetTelemetrySubscriptionResponse(data)
   }
@@ -59,5 +60,16 @@ class ClientMetricsManager {
   def updateSubscription(groupId :String, properties :Properties) = {
     ClientMetricsConfig.updateClientSubscription(groupId, properties, clientInstanceCache)
   }
+
+  def createClientInstance(clientInstanceId: Uuid, clientInfo: CmClientInformation): CmClientInstanceState = {
+    val clientInstance = CmClientInstanceState(clientInstanceId, clientInfo, ClientMetricsConfig.getClientSubscriptionGroups)
+    // add to the cache and if cache size > max entries then time to make some room.
+    clientInstanceCache.add(clientInstance)
+    if (clientInstanceCache.getSize >  CM_CACHE_MAX_SIZE) {
+      ClientMetricsCache.runGC()
+    }
+    clientInstance
+  }
+
 }
 

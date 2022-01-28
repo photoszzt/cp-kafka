@@ -1,5 +1,6 @@
 package kafka.metrics.clientmetrics
 
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.DEFAULT_PUSH_INTERVAL
 import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionGroup
 import org.apache.kafka.common.Uuid
 
@@ -8,51 +9,56 @@ import java.util.Calendar
 import java.util.zip.CRC32
 import scala.collection.mutable.ListBuffer
 
-object ClientInstanceState {
+object CmClientInstanceState {
 
-  def apply(entry: ClientInstanceState, sgroups: java.util.Collection[SubscriptionGroup]): ClientInstanceState = {
-    var metrics = ListBuffer[String]()
-    var pushInterval = 0
+  def apply(entry: CmClientInstanceState, sgroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
+    var metrics = new ListBuffer[String]()
+    var pushInterval = DEFAULT_PUSH_INTERVAL
     sgroups.forEach(v =>
-      if (entry.getClientSelector.isMatched(v.getClientMatchingPatterns)) {
+      if (entry.getClientInfo.isMatched(v.getClientMatchingPatterns)) {
         metrics = metrics ++ v.getSubscribedMetrics
         pushInterval = Math.min(pushInterval, v.getPushIntervalMs)
       }
     )
-    new ClientInstanceState(entry.getId,  entry.getClientSelector, sgroups, metrics.toList, pushInterval)
+    new CmClientInstanceState(entry.getId,  entry.getClientInfo, sgroups, metrics.toList, pushInterval)
   }
 
-  def apply(id: Uuid, selector: ClientInstanceSelector, cmGroups: java.util.Collection[SubscriptionGroup]): ClientInstanceState = {
-    var metrics = ListBuffer[String]()
+  def apply(id: Uuid, clientInfo: CmClientInformation, cmGroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
+    var metrics = new ListBuffer[String]()
     val sgroups = new java.util.ArrayList[SubscriptionGroup]()
-    var pushInterval = 0
+    var pushInterval = DEFAULT_PUSH_INTERVAL
     cmGroups.forEach(v =>
-      if (selector.isMatched(v.getClientMatchingPatterns)) {
+      if (clientInfo.isMatched(v.getClientMatchingPatterns)) {
         metrics = metrics ++ v.getSubscribedMetrics
         sgroups.add(v)
         pushInterval = Math.min(pushInterval, v.getPushIntervalMs)
       }
     )
-    new ClientInstanceState(id, selector, sgroups, metrics.toList, pushInterval)
+    // TODO: what happens when there are no matching groups.
+    new CmClientInstanceState(id, clientInfo, sgroups, metrics.toList, pushInterval)
   }
 }
 
-class ClientInstanceState(clientInstanceId: Uuid,
-                          selector: ClientInstanceSelector,
-                          sgroups: java.util.Collection[SubscriptionGroup],
-                          var metrics: List[String],
-                          pushIntervalMs: Int) {
+class CmClientInstanceState(clientInstanceId: Uuid,
+                            clientInfo: CmClientInformation,
+                            sgroups: java.util.Collection[SubscriptionGroup],
+                            var metrics: List[String],
+                            pushIntervalMs: Int) {
 
-  private var metricsReceivedTs = getCurrentTime
+  private val metricsReceivedTs = Calendar.getInstance.getTime
   private val subscriptionId = computeSubscriptionId
 
   def getPushIntervalMs = pushIntervalMs
   def getLastMetricsReceivedTs = metricsReceivedTs
   def getSubscriptionId =  subscriptionId
   def getId = clientInstanceId
-  def getCurrentTime = Calendar.getInstance.getTime
-  def getClientSelector = selector
+  def getClientInfo = clientInfo
   def getSubscriptionGroups = sgroups
+  def getMetrics = metrics
+
+  def updateMetricsReceivedTs(tsInMs: Long): Unit =  {
+    metricsReceivedTs.setTime(tsInMs)
+  }
 
   // Computes the SubscriptionId as a unique identifier for a client instance's subscription set, the id is generated
   // by calculating a CRC32 of the configured metrics subscriptions including the PushIntervalMs,
@@ -64,9 +70,6 @@ class ClientInstanceState(clientInstanceId: Uuid,
     crc.getValue ^ clientInstanceId.hashCode
   }
 
-  def updateMetricsReceivedTs(): Unit = {
-    metricsReceivedTs = getCurrentTime
-  }
 }
 
 

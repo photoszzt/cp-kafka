@@ -16,17 +16,18 @@ object ClientMetricsConfig {
 
   class SubscriptionGroup (subscriptionGroup: String,
                            subscribedMetrics: List[String],
-                           clientMatchingPatterns: List[String],
+                           var matchingPatternsList: List[String],
                            pushIntervalMs: Int) {
     def getId = subscriptionGroup
     def getPushIntervalMs = pushIntervalMs
-    def getClientMatchingPatterns = parseClientMatchingPatterns(clientMatchingPatterns)
+    val clientMatchingPatterns = parseClientMatchingPatterns(matchingPatternsList)
+    def getClientMatchingPatterns = clientMatchingPatterns
     def getSubscribedMetrics = subscribedMetrics
 
     private def parseClientMatchingPatterns(patterns: List[String]) : Map[String, String] = {
       val patternsMap = mutable.Map[String, String]()
       patterns.foreach(x =>  {
-        val nameValuePair = x.split("=")
+        val nameValuePair = x.split("=").map(x => x.trim)
         if (nameValuePair.size != 2) {
           throw new InvalidConfigurationException("Illegal client matching pattern: " + x)
         }
@@ -42,13 +43,14 @@ object ClientMetricsConfig {
     val SubscriptionMetrics = "client.metrics.subscription.metrics"
     val ClientMatchPattern = "client.metrics.subscription.client.match"
     val PushIntervalMs = "client.metrics.push.interval.ms"
+    val DEFAULT_PUSH_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
     // Definitions
     val configDef = new ConfigDef()
       .define(SubscriptionGroupName, STRING, MEDIUM, "Name of the metric subscription group")
       .define(SubscriptionMetrics, LIST, MEDIUM, "List of the subscribed metrics")
       .define(ClientMatchPattern, LIST, MEDIUM, "Pattern used to find the matching clients")
-      .define(PushIntervalMs, INT, MEDIUM, "Interval that a client can push the metrics")
+      .define(PushIntervalMs, INT, DEFAULT_PUSH_INTERVAL, MEDIUM, "Interval that a client can push the metrics")
 
     def names = configDef.names
 

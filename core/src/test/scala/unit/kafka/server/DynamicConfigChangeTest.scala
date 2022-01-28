@@ -24,7 +24,7 @@ import java.util.Properties
 import java.util.concurrent.ExecutionException
 import kafka.integration.KafkaServerTestHarness
 import kafka.log.LogConfig._
-import kafka.metrics.clientmetrics.ClientMetricsConfig
+import kafka.metrics.clientmetrics.{CmClientInformation, ClientMetricsConfig}
 import kafka.utils._
 import kafka.server.Constants._
 import kafka.zk.ConfigEntityChangeNotificationZNode
@@ -303,10 +303,36 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     assertTrue(this.servers.head.dynamicConfigHandlers.contains(ConfigType.ClientMetrics),
       "Should contain a ConfigHandler for " + ConfigType.ClientMetrics)
 
+    val configEntityName: String = "subscription-2"
+    val metrics = "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
+    val pushInterval = 30 * 1000 // 30 seconds
+    val pattern1 = CmClientInformation.CLIENT_SOFTWARE_NAME + " = Java       "
+    val pattern2 = CmClientInformation.CLIENT_SOFTWARE_VERSION + " =     11.*   "
+    val patternsList = List(pattern1, pattern2)
+
+    val props = new Properties()
+    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, configEntityName)
+    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics)
+    props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, patternsList.mkString(","))
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
+
+    // ********  Test Create the new client subscription with multiple client matching patterns *********
+    updateClientSubscription(configEntityName, props, () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
+    val sgroup = ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
+    assertTrue(sgroup.getPushIntervalMs == pushInterval)
+    assertTrue(sgroup.getSubscribedMetrics.size == 2 && sgroup.getSubscribedMetrics.mkString(",").equals(metrics))
+    assertTrue(sgroup.getClientMatchingPatterns.size == patternsList.size)
+  }
+
+  @Test
+  def testClientMetricsConfigMultipleUpdates(): Unit = {
+    assertTrue(this.servers.head.dynamicConfigHandlers.contains(ConfigType.ClientMetrics),
+      "Should contain a ConfigHandler for " + ConfigType.ClientMetrics)
+
     val configEntityName: String = "subscription-1"
     val metrics = "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
     val clientMatchingPattern = "client_instance_id=b69cc35a-7a54-4790-aa69-cc2bd4ee4538"
-    val pushInterval = 30 * 1000 // 60 milli seconds
+    val pushInterval = 30 * 1000 // 30 seconds
 
     val props = new Properties()
     props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, configEntityName)
