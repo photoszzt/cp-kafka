@@ -71,7 +71,7 @@ class ClientMetricsCacheTest {
     assertTrue(clientState == clientStateFromCache)
 
     val res = clientState.getSubscriptionGroups
-    assertTrue(res.size() ==1)
+    assertTrue(res.size() == 1)
     assertTrue(res.contains(sgroup1))
     assertTrue(clientState.getPushIntervalMs == defaultPushInterval)
     assertTrue(clientState.metrics.size == 2 && clientState.metrics.mkString(",").equals(defaultMetrics))
@@ -102,11 +102,16 @@ class ClientMetricsCacheTest {
 
     // TEST3: DELETE the metrics subscription: Delete the first group and make sure client instance is updated
     val props4 = new Properties()
-    props4.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, "")
+    props4.put(ClientMetricsConfig.ClientMetrics.DeleteSubscription, true)
     createCMSubscriptionGroup("cm_1", props4)
+
+    // group should have been deleted.
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup("cm_1") == null)
+
     val afterDeletingGroup = getCM.getClientInstance(clientState.getId)
     assertTrue(afterAddingNewGroup.getId == afterDeletingGroup.getId)
     assertTrue(afterAddingNewGroup.getSubscriptionId != afterDeletingGroup.getSubscriptionId)
+    assertTrue(afterAddingNewGroup.getSubscriptionGroups.size() - afterDeletingGroup.getSubscriptionGroups.size() == 1)
     assertTrue(afterDeletingGroup.metrics.size == 1 && afterDeletingGroup.metrics.mkString(",").equals(metrics3))
   }
 

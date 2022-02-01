@@ -366,7 +366,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.mkString(",").equals(updatedMetrics))
 
     // *******  Test-4 Delete the metric subscriptions  *********
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, "")
+    props.put(ClientMetricsConfig.ClientMetrics.DeleteSubscription, "true")
     updateClientSubscription(configEntityName, props, () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
     assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
   }

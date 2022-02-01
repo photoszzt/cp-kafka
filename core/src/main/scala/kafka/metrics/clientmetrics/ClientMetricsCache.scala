@@ -14,11 +14,23 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
+/**
+ * Allowed operations on the ClientMetricsCache
+ */
 object ClientMetricsCacheOperation extends Enumeration {
   type ClientMetricsCacheOperation = Value
   val CM_SUBSCRIPTION_ADDED, CM_SUBSCRIPTION_DELETED, CM_SUBSCRIPTION_UPDATED, CM_SUBSCRIPTION_TTL = Value
 }
 
+/**
+ * Client Metrics Cache:
+ *   Caches of the client instance state objects that are created in response to the client's
+ *   GetTelemetrySubscriptionRequest message. Elements stayed too long (beyond the TTL time period)
+ *   would be cleaned up from the cache by running GC which is is an asynchronous task triggered by
+ *   ClientMetricsManager. Also whenever a client metric subscription is added/deleted/modified cache
+ *   is invalidated to make sure that cached elements reflects the changes made to the client metric
+ *   subscriptions.
+ */
 object  ClientMetricsCache {
   val DEFAULT_TTL_MS = 60 * 1000  // One minute
   val CM_CACHE_GC_INTERVAL = 5 * 60 * 1000 // 5 minutes
@@ -63,13 +75,11 @@ class ClientMetricsCache {
   def get(id: Uuid): CmClientInstanceState = _cache.get(id.toString)
   def clear() = _cache.clear()
 
-  //
   // Invalidates the client metrics cache by iterating through all the client instances and do one of the following:
   //     1. TTL operation -- Cleans up all the cache entries that are expired beyond TTL allowed time.
   //     2. Adding a new group -- Update the metrics by appending the new metrics from the new group
   //     3. Deleting an existing group -- Update the metrics by deleting the metrics from the deleted group.
   //     4. Updating an existing group. -- delete the old metrics and add the new metrics.
-  //
   def invalidate(oldGroup: SubscriptionGroup, newGroup: SubscriptionGroup, operation: ClientMetricsCacheOperation) = {
     operation match {
       case CM_SUBSCRIPTION_TTL => cleanupTtlEntries()
@@ -86,7 +96,7 @@ class ClientMetricsCache {
     _cache.values().forEach(v =>
         if (v.getClientInfo.isMatched(cmSubscriptionGroup.getClientMatchingPatterns)) {
           v.getSubscriptionGroups.add(cmSubscriptionGroup)
-          affectedElements.append(CmClientInstanceState(v, v.getSubscriptionGroups))
+          affectedElements.append(CmClientInstanceState(v))
         }
     )
     affectedElements.foreach(x => _cache.replace(x.getId.toString, x))
@@ -98,7 +108,7 @@ class ClientMetricsCache {
       if (v.getClientInfo.isMatched(cmSubscriptionGroup.getClientMatchingPatterns)) {
         v.getSubscriptionGroups.remove(cmSubscriptionGroup)
         if (!v.getSubscriptionGroups.isEmpty)
-          affectedElements.append(CmClientInstanceState(v, v.getSubscriptionGroups))
+          affectedElements.append(CmClientInstanceState(v))
       }
     )
     affectedElements.foreach(x => _cache.replace(x.getId.toString, x))
@@ -117,7 +127,7 @@ class ClientMetricsCache {
         v.getSubscriptionGroups.add(newGroup)
       }
       if (!v.getSubscriptionGroups.isEmpty && changed) {
-          affectedElements.append(CmClientInstanceState(v, v.getSubscriptionGroups))
+          affectedElements.append(CmClientInstanceState(v))
       }
     })
 

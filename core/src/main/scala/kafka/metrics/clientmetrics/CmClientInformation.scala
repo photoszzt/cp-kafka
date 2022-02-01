@@ -16,7 +16,6 @@ object CmClientInformation {
 
   def apply(request: RequestChannel.Request, clientInstanceId: String): CmClientInformation = {
     val instance = new CmClientInformation
-
     instance.init(clientInstanceId, request.context.clientId(), request.context.clientInformation.softwareName(),
                   request.context.clientInformation.softwareVersion(), request.context.clientAddress.getHostAddress,
                   request.context.clientAddress.getHostAddress )

@@ -10,7 +10,7 @@ import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.CompressionType
 import org.apache.kafka.common.requests.{GetTelemetrySubscriptionRequest, GetTelemetrySubscriptionResponse}
 
-import java.util.{Collections, Properties}
+import java.util.Properties
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
@@ -64,12 +64,12 @@ class ClientMetricsManager {
 
     if (clientInstance.isDisabledForMetricsCollection) {
       info(s"Metrics collection is disabled for the client: ${clientInstance.getId.toString}")
-      data.setRequestedMetrics(Collections.emptyList())
       data.setErrorCode(Errors.INVALID_CONFIG.code)
     } else {
-      data.setRequestedMetrics(clientInstance.getMetrics.asJava)
       data.setErrorCode(Errors.NONE.code())
     }
+
+    data.setRequestedMetrics(clientInstance.getMetrics.asJava)
     new GetTelemetrySubscriptionResponse(data)
   }
 

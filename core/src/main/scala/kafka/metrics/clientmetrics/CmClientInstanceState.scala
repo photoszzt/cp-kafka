@@ -11,45 +11,56 @@ import scala.collection.mutable.ListBuffer
 
 object CmClientInstanceState {
 
-  def apply(entry: CmClientInstanceState, sgroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
-    var metrics = new ListBuffer[String]()
-    var pushInterval = DEFAULT_PUSH_INTERVAL
-    sgroups.forEach(v =>
-      if (entry.getClientInfo.isMatched(v.getClientMatchingPatterns)) {
-        metrics = metrics ++ v.getSubscribedMetrics
-        pushInterval = Math.min(pushInterval, v.getPushIntervalMs)
-      }
-    )
-    new CmClientInstanceState(entry.getId,  entry.getClientInfo, sgroups, metrics.toList, pushInterval)
+  // Copy constructor
+  def apply(instance: CmClientInstanceState): CmClientInstanceState = {
+   create(instance.getId, instance.getClientInfo, instance.getSubscriptionGroups)
   }
 
   def apply(id: Uuid, clientInfo: CmClientInformation, cmGroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
-    var metrics = new ListBuffer[String]()
-    val sgroups = new java.util.ArrayList[SubscriptionGroup]()
+    create(id, clientInfo, cmGroups)
+  }
+
+  private def create(id: Uuid, clientInfo: CmClientInformation,
+                     sgroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
+
+    var targetMetrics = new ListBuffer[String]()
     var pushInterval = DEFAULT_PUSH_INTERVAL
-    cmGroups.forEach(v =>
+    val targetGroups = new java.util.ArrayList[SubscriptionGroup]()
+    var allMetricsSubscribed = false
+
+    sgroups.forEach(v =>
       if (clientInfo.isMatched(v.getClientMatchingPatterns)) {
-        metrics = metrics ++ v.getSubscribedMetrics
-        sgroups.add(v)
+        allMetricsSubscribed = allMetricsSubscribed | v.getAllMetricsSubscribed
+        targetMetrics = targetMetrics ++ v.getSubscribedMetrics
+        targetGroups.add(v)
         pushInterval = Math.min(pushInterval, v.getPushIntervalMs)
       }
     )
 
-    // What happens if there are no matching subscriptions found:
-    // Current behavior is to create the empty metrics list and send it to the client.
-    // So client keep sending push metrics request with empty metrics and
-    // whenever a new matching client subscription is added any way new subscriptionId is computed and
-    // clientInstance object is updated in the cache. So subsequent push request would be reject by the broker
-    // with error code UnknownSubscriptionId.
-    new CmClientInstanceState(id, clientInfo, sgroups, metrics.toList, pushInterval)
+    // if pushinterval == 0 means, metrics collection is disabled for this client so clear all the metrics and just
+    // send the empty metrics list to the client.
+    // Otherwise, if client matches with any group that has the property `allMetricsSubscribed` which means there is no
+    // need for filtering the metrics, so as per KIP-714 protocol just send the empty string as the contents of the list
+    // so that client would send all the metrics updates
+    // Otherwise, just use the compiled metrics.
+    if (pushInterval == 0) {
+      targetMetrics.clear()
+    } else if (allMetricsSubscribed) {
+      targetMetrics.clear()
+      targetMetrics.append("")
+    }
+
+    new CmClientInstanceState(id,  clientInfo, targetGroups, targetMetrics.toList, pushInterval, allMetricsSubscribed)
   }
+
 }
 
-class CmClientInstanceState(clientInstanceId: Uuid,
-                            clientInfo: CmClientInformation,
-                            sgroups: java.util.Collection[SubscriptionGroup],
-                            var metrics: List[String],
-                            pushIntervalMs: Int) {
+class CmClientInstanceState private (clientInstanceId: Uuid,
+                                     clientInfo: CmClientInformation,
+                                     sgroups: java.util.Collection[SubscriptionGroup],
+                                     var metrics: List[String],
+                                     pushIntervalMs: Int,
+                                     allMetricsSubscribed: Boolean) {
 
   private val metricsReceivedTs = Calendar.getInstance.getTime
   private val subscriptionId = computeSubscriptionId
@@ -61,9 +72,10 @@ class CmClientInstanceState(clientInstanceId: Uuid,
   def getClientInfo = clientInfo
   def getSubscriptionGroups = sgroups
   def getMetrics = metrics
+  def getAllMetricsSubscribed = allMetricsSubscribed
 
   // Whenever push-interval for a client is set to 0 means metric collection for this specific client is disabled.
-  def isDisabledForMetricsCollection :Boolean =  (getPushIntervalMs == 0)
+  def isDisabledForMetricsCollection :Boolean =  getPushIntervalMs == 0
 
   def updateMetricsReceivedTs(tsInMs: Long): Unit =  {
     metricsReceivedTs.setTime(tsInMs)
