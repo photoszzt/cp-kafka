@@ -1,46 +1,19 @@
 package kafka.metrics
 
+import kafka.metrics.ClientMetricsTestUtils.{createCMSubscriptionGroup, createClientInstance, getCM, defaultMetrics, defaultPushInterval}
 import kafka.metrics.clientmetrics.ClientMetricsCache.DEFAULT_TTL_MS
-import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation, CmClientInstanceState}
-import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionGroup
-import kafka.server.ClientMetricsManager
+import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation}
 import kafka.utils.TestUtils
-import org.apache.kafka.common.Uuid
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.{AfterEach, Test}
 
 import java.util.Properties
 
 class ClientMetricsCacheTest {
-  val pushInterval = 30 * 1000 // 30 seconds
-  val metrics = "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
-  val patternsList = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Java", s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=11.1.*")
-
-  private def updateClientSubscription(subscriptionId :String, properties: Properties): Unit = {
-    ClientMetricsManager.get.updateSubscription(subscriptionId, properties)
-  }
-
-  private def createClientInstance(selector: CmClientInformation): CmClientInstanceState = {
-    ClientMetricsManager.get.createClientInstance(Uuid.randomUuid(), selector)
-  }
-
-  private def createCMSubscriptionGroup(groupName: String, overrideProps: Properties = null): SubscriptionGroup = {
-    val props = new Properties()
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, groupName)
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics)
-    props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, patternsList.mkString(","))
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
-    if (overrideProps != null) {
-      overrideProps.entrySet().forEach(x => props.put(x.getKey, x.getValue))
-    }
-    updateClientSubscription(groupName, props)
-    ClientMetricsConfig.getClientSubscriptionGroup(groupName)
-  }
-
   @AfterEach
   def cleanup(): Unit = {
     ClientMetricsConfig.clearClientSubscriptions()
-    ClientMetricsManager.get.clearCache()
+    getCM.clearCache()
   }
 
   @Test
@@ -53,11 +26,11 @@ class ClientMetricsCacheTest {
     // metrics subscription group.
     val client = CmClientInformation("testClient1", "clientId", "Java", "11.1.0.1", "", "")
     val clientState = createClientInstance(client)
-    val clientStateFromCache = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    val clientStateFromCache = getCM.getClientInstance(clientState.getId)
     assertTrue(clientState == clientStateFromCache)
     assertTrue(clientStateFromCache.getSubscriptionGroups.size() == 1)
-    assertTrue(clientStateFromCache.getPushIntervalMs == pushInterval)
-    assertTrue(clientStateFromCache.metrics.size == 2 && clientStateFromCache.getMetrics.mkString(",").equals(metrics))
+    assertTrue(clientStateFromCache.getPushIntervalMs == defaultPushInterval)
+    assertTrue(clientStateFromCache.metrics.size == 2 && clientStateFromCache.getMetrics.mkString(",").equals(defaultMetrics))
   }
 
   @Test
@@ -65,7 +38,7 @@ class ClientMetricsCacheTest {
     // create a client instance state object  when there are no client metrics subscriptions exists
     val client = CmClientInformation("testClient1", "clientId", "Java", "11.1.0.1", "", "")
     val clientState = createClientInstance(client)
-    var clientStateFromCache = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    var clientStateFromCache = getCM.getClientInstance(clientState.getId)
     assertTrue(clientState == clientStateFromCache)
     assertTrue(clientStateFromCache.getSubscriptionGroups.isEmpty)
     assertTrue(clientStateFromCache.getMetrics.isEmpty)
@@ -73,11 +46,11 @@ class ClientMetricsCacheTest {
 
     // Now create a new client subscription and make sure the client instance is updated with the metrics.
     createCMSubscriptionGroup("cm_1")
-    clientStateFromCache = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    clientStateFromCache = getCM.getClientInstance(clientState.getId)
     assertTrue(clientStateFromCache.getSubscriptionGroups.size() == 1)
-    assertTrue(clientStateFromCache.getPushIntervalMs == pushInterval)
+    assertTrue(clientStateFromCache.getPushIntervalMs == defaultPushInterval)
     assertTrue(clientStateFromCache.getSubscriptionId != oldSubscriptionId)
-    assertTrue(clientStateFromCache.metrics.size == 2 && clientStateFromCache.getMetrics.mkString(",").equals(metrics))
+    assertTrue(clientStateFromCache.metrics.size == 2 && clientStateFromCache.getMetrics.mkString(",").equals(defaultMetrics))
   }
 
   @Test
@@ -94,42 +67,44 @@ class ClientMetricsCacheTest {
     // create a client instance state object and make sure every thing is in correct order.
     val client = CmClientInformation("testClient1", "clientId", "Java", "11.1.0.1", "", "")
     val clientState = createClientInstance(client)
-    val clientStateFromCache = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    val clientStateFromCache = getCM.getClientInstance(clientState.getId)
     assertTrue(clientState == clientStateFromCache)
 
     val res = clientState.getSubscriptionGroups
     assertTrue(res.size() ==1)
     assertTrue(res.contains(sgroup1))
-    assertTrue(clientState.getPushIntervalMs == pushInterval)
-    assertTrue(clientState.metrics.size == 2 && clientState.metrics.mkString(",").equals(metrics))
+    assertTrue(clientState.getPushIntervalMs == defaultPushInterval)
+    assertTrue(clientState.metrics.size == 2 && clientState.metrics.mkString(",").equals(defaultMetrics))
 
-    // TEST-2: UPDATE the metrics subscription: Create update the metrics subscriptions by adding new subscription group
-    // with different metrics and make sure that client instance object is updated with the new metric and
-    // new subscription id is computed
+    // TEST-2: UPDATE the metrics subscription: Create update the metrics subscriptions by adding new
+    // subscription group with different metrics and make sure that client instance object is updated
+    // with the new metric and new subscription id.
     val metrics3 = "org.apache.kafka/client.producer.write.latency"
     val props3 = new Properties()
     props3.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics3)
     createCMSubscriptionGroup("cm_3", props3)
-    val afterAddingNewGroup = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    val afterAddingNewGroup = getCM.getClientInstance(clientState.getId)
     assertTrue(clientStateFromCache.getId == afterAddingNewGroup.getId)
     assertTrue(clientState.getSubscriptionId != afterAddingNewGroup.getSubscriptionId)
-    assertTrue(afterAddingNewGroup.metrics.size == 3 && afterAddingNewGroup.metrics.mkString(",").equals(metrics + "," + metrics3))
+    assertTrue(afterAddingNewGroup.metrics.size == 3 &&
+      afterAddingNewGroup.metrics.mkString(",").equals(defaultMetrics + "," + metrics3))
 
     // TEST-3: UPDATE the first group metrics and make sure client instance picked up the change.
     val updated_metrics = "updated_metrics_for_clients"
     val updatedProps = new Properties()
     updatedProps.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, updated_metrics)
     createCMSubscriptionGroup("cm_1", updatedProps)
-    val afterSecondUpdate = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    val afterSecondUpdate = getCM.getClientInstance(clientState.getId)
     assertTrue(afterSecondUpdate.getId == afterAddingNewGroup.getId)
     assertTrue(afterSecondUpdate.getSubscriptionId != afterAddingNewGroup.getSubscriptionId)
-    assertTrue(afterSecondUpdate.metrics.size == 2 && afterSecondUpdate.metrics.mkString(",").equals(metrics3 + "," + updated_metrics))
+    assertTrue(afterSecondUpdate.metrics.size == 2 &&
+      afterSecondUpdate.metrics.mkString(",").equals(metrics3 + "," + updated_metrics))
 
     // TEST3: DELETE the metrics subscription: Delete the first group and make sure client instance is updated
     val props4 = new Properties()
     props4.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, "")
     createCMSubscriptionGroup("cm_1", props4)
-    val afterDeletingGroup = ClientMetricsManager.get.getClientInstance(clientState.getId)
+    val afterDeletingGroup = getCM.getClientInstance(clientState.getId)
     assertTrue(afterAddingNewGroup.getId == afterDeletingGroup.getId)
     assertTrue(afterAddingNewGroup.getSubscriptionId != afterDeletingGroup.getSubscriptionId)
     assertTrue(afterDeletingGroup.metrics.size == 1 && afterDeletingGroup.metrics.mkString(",").equals(metrics3))
@@ -170,7 +145,7 @@ class ClientMetricsCacheTest {
 
     // Verifications:
     // Client 1 should have the metrics from the groups sgroup1 and sgroup2
-    assertTrue(client1.getMetrics.mkString(",").equals(metrics + "," + metrics2))
+    assertTrue(client1.getMetrics.mkString(",").equals(defaultMetrics + "," + metrics2))
 
     // Client 2 should have the group3 which is just default metrics
     assertTrue(client2.getMetrics.mkString(",").equals(metrics3))
@@ -179,7 +154,7 @@ class ClientMetricsCacheTest {
     assertTrue(client3.getMetrics.isEmpty)
 
     // Client 4 should have the metrics from the groups sgroup1 and sgroup2
-    assertTrue(client4.getMetrics.mkString(",").equals(metrics + "," + metrics2))
+    assertTrue(client4.getMetrics.mkString(",").equals(defaultMetrics + "," + metrics2))
 
     // Client 5 should have the metrics from the group sgroup3 and sgroup4
     assertTrue(client5.getMetrics.mkString(",").equals(metrics3 + "," + metrics4))
@@ -194,16 +169,20 @@ class ClientMetricsCacheTest {
     val client3 = createClientInstance(CmClientInformation("testClient3", "clientId3", "C++", "12.1", "", ""))
     assertTrue(cache.getSize == 3)
 
-    val delta =  client3.getLastMetricsReceivedTs.getTime - (Math.max(3 * client3.getPushIntervalMs, DEFAULT_TTL_MS) + 1000)
-    client3.updateMetricsReceivedTs(delta)
-    ClientMetricsCache.gcTs.setTime(ClientMetricsCache.gcTs.getTime - (ClientMetricsCache.CM_CACHE_GC_INTERVAL + 1000))
-    ClientMetricsCache.runGC()
+    // Modify client3's timestamp to meet the TTL expiry limit.
+    val ts = client3.getLastMetricsReceivedTs.getTime - (Math.max(3 * client3.getPushIntervalMs, DEFAULT_TTL_MS) + 10)
+    client3.updateMetricsReceivedTs(ts)
+    ClientMetricsCache.gcTs.setTime(ClientMetricsCache.gcTs.getTime - (ClientMetricsCache.CM_CACHE_GC_INTERVAL + 10))
 
-    // Wait until GC removed the client3 entry from the cache
-    TestUtils.waitUntilTrue(() => ClientMetricsCache.getInstance.getSize == 2,  "Failed to run GC on Client Metrics Cache", 6 * 1000)
+    // Run the GC and wait until client3 entry is removed from the cache
+    ClientMetricsCache.runGC()
+    TestUtils.waitUntilTrue(() => cache.getSize == 2, "Failed to run GC on Client Metrics Cache", 6000)
+
+    // Make sure that client3 is removed from the cache.
+    assertTrue(cache.get(client3.getId) == null)
+
+    // client1 and client2 should remain in the cache.
     assertTrue(cache.get(client1.getId) != null)
     assertTrue(cache.get(client2.getId) != null)
-    assertTrue(cache.get(client3.getId) == null)
   }
-
 }

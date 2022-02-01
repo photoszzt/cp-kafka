@@ -34,7 +34,13 @@ object CmClientInstanceState {
         pushInterval = Math.min(pushInterval, v.getPushIntervalMs)
       }
     )
-    // TODO: what happens when there are no matching groups.
+
+    // What happens if there are no matching subscriptions found:
+    // Current behavior is to create the empty metrics list and send it to the client.
+    // So client keep sending push metrics request with empty metrics and
+    // whenever a new matching client subscription is added any way new subscriptionId is computed and
+    // clientInstance object is updated in the cache. So subsequent push request would be reject by the broker
+    // with error code UnknownSubscriptionId.
     new CmClientInstanceState(id, clientInfo, sgroups, metrics.toList, pushInterval)
   }
 }
@@ -56,6 +62,9 @@ class CmClientInstanceState(clientInstanceId: Uuid,
   def getSubscriptionGroups = sgroups
   def getMetrics = metrics
 
+  // Whenever push-interval for a client is set to 0 means metric collection for this specific client is disabled.
+  def isDisabledForMetricsCollection :Boolean =  (getPushIntervalMs == 0)
+
   def updateMetricsReceivedTs(tsInMs: Long): Unit =  {
     metricsReceivedTs.setTime(tsInMs)
   }
@@ -63,11 +72,11 @@ class CmClientInstanceState(clientInstanceId: Uuid,
   // Computes the SubscriptionId as a unique identifier for a client instance's subscription set, the id is generated
   // by calculating a CRC32 of the configured metrics subscriptions including the PushIntervalMs,
   // XORed with the ClientInstanceId.
-  private def computeSubscriptionId: Long = {
+  private def computeSubscriptionId: Int = {
     val crc = new CRC32
     val metricsStr = metrics.toString() + pushIntervalMs.toString
     crc.update(metricsStr.getBytes(StandardCharsets.UTF_8))
-    crc.getValue ^ clientInstanceId.hashCode
+    crc.getValue.toInt ^ clientInstanceId.hashCode
   }
 
 }

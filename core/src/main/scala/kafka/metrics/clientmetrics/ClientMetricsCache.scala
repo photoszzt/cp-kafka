@@ -26,6 +26,7 @@ object  ClientMetricsCache {
 
   private val cacheInstance = new ClientMetricsCache
   def getInstance = cacheInstance
+  val getSize = getInstance.getSize
 
   // Launches the asynchronous task to clean the client metric subscriptions that are expired in the cache.
   // TODO: in future, if needed, we may need to run this task periodically regardless of the size of the cache
@@ -51,7 +52,7 @@ object  ClientMetricsCache {
   private def cleanupExpiredEntries(reason: String): Future[Int] = Future {
     val preCleanupSize = cacheInstance.getSize
     cacheInstance.invalidate(null, null, CM_SUBSCRIPTION_TTL)
-    cacheInstance.getSize - preCleanupSize
+    preCleanupSize - cacheInstance.getSize
   }
 }
 

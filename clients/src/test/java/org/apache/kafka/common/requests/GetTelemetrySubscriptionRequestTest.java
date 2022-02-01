@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GetTelemetrySubscriptionRequestTest {
 
@@ -44,6 +45,7 @@ public class GetTelemetrySubscriptionRequestTest {
         GetTelemetrySubscriptionResponse response = new GetTelemetrySubscriptionResponse(data);
         assertEquals(Collections.singletonMap(Errors.NONE, 1), response.errorCounts());
     }
+
     @Test
     public void testErrorCountsReturnsOneError() {
         GetTelemetrySubscriptionsResponseData data = new GetTelemetrySubscriptionsResponseData()

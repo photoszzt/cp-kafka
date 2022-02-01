@@ -3466,7 +3466,7 @@ class KafkaApis(val requestChannel: RequestChannel,
     val subscriptionRequest = request.body[GetTelemetrySubscriptionRequest]
     try {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
-        ClientMetricsManager.get.processGetSubscriptionRequest(request, config, requestThrottleMs))
+        ClientMetricsManager.processGetSubscriptionRequest(request, requestThrottleMs))
     } catch {
       case e: Exception =>
         requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
