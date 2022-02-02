@@ -9,6 +9,9 @@ import java.util.Calendar
 import java.util.zip.CRC32
 import scala.collection.mutable.ListBuffer
 
+/**
+ * Client instance state that contains all the necessary information about the metric subscription for a client
+ */
 object CmClientInstanceState {
 
   // Copy constructor
@@ -16,11 +19,14 @@ object CmClientInstanceState {
    create(instance.getId, instance.getClientInfo, instance.getSubscriptionGroups)
   }
 
-  def apply(id: Uuid, clientInfo: CmClientInformation, cmGroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
+  def apply(id: Uuid,
+            clientInfo: CmClientInformation,
+            cmGroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
     create(id, clientInfo, cmGroups)
   }
 
-  private def create(id: Uuid, clientInfo: CmClientInformation,
+  private def create(id: Uuid,
+                     clientInfo: CmClientInformation,
                      sgroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
 
     var targetMetrics = new ListBuffer[String]()
@@ -39,10 +45,9 @@ object CmClientInstanceState {
 
     // if pushinterval == 0 means, metrics collection is disabled for this client so clear all the metrics and just
     // send the empty metrics list to the client.
-    // Otherwise, if client matches with any group that has the property `allMetricsSubscribed` which means there is no
-    // need for filtering the metrics, so as per KIP-714 protocol just send the empty string as the contents of the list
-    // so that client would send all the metrics updates
-    // Otherwise, just use the compiled metrics.
+    // Otherwise, if client matches with any group that has the property `allMetricsSubscribed` which means there is
+    // no need for filtering the metrics, so as per KIP-714 protocol just send the empty string as the contents
+    // of the list so that client would send all the metrics updates Otherwise, just use the compiled metrics.
     if (pushInterval == 0) {
       targetMetrics.clear()
     } else if (allMetricsSubscribed) {

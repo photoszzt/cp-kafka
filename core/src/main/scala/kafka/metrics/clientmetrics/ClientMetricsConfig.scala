@@ -1,5 +1,6 @@
 package kafka.metrics.clientmetrics
 
+import kafka.metrics.clientmetrics.ClientMetricsCacheOperation.{CM_SUBSCRIPTION_ADDED, CM_SUBSCRIPTION_DELETED, CM_SUBSCRIPTION_UPDATED}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.{AllMetricsFlag, ClientMatchPattern, DeleteSubscription, PushIntervalMs, SubscriptionMetrics, configDef}
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM
@@ -12,6 +13,12 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
+/**
+ * Client metric configuration related parameters and the supporting methods like validation and update methods
+ * are defined in this class.
+ * For more information please look at kip-714:
+ * https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability
+ */
 object ClientMetricsConfig {
 
   class SubscriptionGroup(subscriptionGroup: String,
@@ -109,22 +116,22 @@ object ClientMetricsConfig {
 
   def updateClientSubscription(groupId :String, properties: Properties, cache: ClientMetricsCache): Unit = {
     val parsed = configDef.parse(properties)
-    val isDeleteSubscription = parsed.getOrDefault(DeleteSubscription, false).asInstanceOf[Boolean]
-    if (isDeleteSubscription) {
+    val javaFalse = java.lang.Boolean.FALSE
+    val subscriptionDeleted = parsed.getOrDefault(DeleteSubscription, javaFalse).asInstanceOf[Boolean]
+    if (subscriptionDeleted) {
       val deletedGroup = subscriptionMap.remove(groupId)
-      cache.invalidate(deletedGroup, null, ClientMetricsCacheOperation.CM_SUBSCRIPTION_DELETED)
+      cache.invalidate(deletedGroup, null, CM_SUBSCRIPTION_DELETED)
     } else {
       val clientMatchPattern = toList(parsed.get(ClientMatchPattern))
       val pushInterval = parsed.get(PushIntervalMs).asInstanceOf[Int]
-      val allMetricsSubscribed = parsed.getOrDefault(AllMetricsFlag, false).asInstanceOf[Boolean]
+      val allMetricsSubscribed = parsed.getOrDefault(AllMetricsFlag, javaFalse).asInstanceOf[java.lang.Boolean]
       val metrics = if (allMetricsSubscribed) List("") else toList(parsed.get(SubscriptionMetrics))
       val newGroup = new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval, allMetricsSubscribed)
       val oldGroup = subscriptionMap.put(groupId, newGroup)
-      if (oldGroup != null) {
-        cache.invalidate(oldGroup, newGroup, ClientMetricsCacheOperation.CM_SUBSCRIPTION_UPDATED)
-      } else {
-        cache.invalidate(oldGroup, newGroup, ClientMetricsCacheOperation.CM_SUBSCRIPTION_ADDED)
-      }
+      val operation = if (oldGroup != null) CM_SUBSCRIPTION_UPDATED else CM_SUBSCRIPTION_ADDED
+
+      // Invalidate the the cache to absorb the changes from the new subscription group
+      cache.invalidate(oldGroup, newGroup, operation)
     }
   }
 

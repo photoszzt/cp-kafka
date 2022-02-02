@@ -57,7 +57,7 @@ class ClientMetricsManager {
     val data =  new GetTelemetrySubscriptionsResponseData()
         .setThrottleTimeMs(throttleMs)
         .setClientInstanceId(clientInstanceId)
-        .setSubscriptionId(clientInstance.getSubscriptionId) // ?? TODO: should we use LONG instead of down casting into int?
+        .setSubscriptionId(clientInstance.getSubscriptionId) // TODO: should we use LONG instead of int?
         .setAcceptedCompressionTypes(getSupportedCompressionTypes.asJava)
         .setPushIntervalMs(clientInstance.getPushIntervalMs)
         .setDeltaTemporality(true)
@@ -78,7 +78,8 @@ class ClientMetricsManager {
   }
 
   def createClientInstance(clientInstanceId: Uuid, clientInfo: CmClientInformation): CmClientInstanceState = {
-    val clientInstance = CmClientInstanceState(clientInstanceId, clientInfo, ClientMetricsConfig.getClientSubscriptionGroups)
+    val clientInstance = CmClientInstanceState(clientInstanceId, clientInfo,
+                                               ClientMetricsConfig.getClientSubscriptionGroups)
 
     // Add to the cache and if cache size > max entries then time to make some room by running
     // GC to clean up all the expired entries in the cache.

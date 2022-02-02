@@ -6,6 +6,9 @@ import kafka.network.RequestChannel
 import org.apache.kafka.common.errors.InvalidConfigurationException
 
 
+/**
+ * Information from the client's metadata is gathered from the client's request.
+ */
 object CmClientInformation {
   val CLIENT_INSTANCE_ID = "client_instance_id"
   val CLIENT_ID = "client_id"

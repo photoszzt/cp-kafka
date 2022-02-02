@@ -24,12 +24,16 @@ object ClientMetricsCacheOperation extends Enumeration {
 
 /**
  * Client Metrics Cache:
- *   Caches of the client instance state objects that are created in response to the client's
- *   GetTelemetrySubscriptionRequest message. Elements stayed too long (beyond the TTL time period)
- *   would be cleaned up from the cache by running GC which is is an asynchronous task triggered by
- *   ClientMetricsManager. Also whenever a client metric subscription is added/deleted/modified cache
- *   is invalidated to make sure that cached elements reflects the changes made to the client metric
- *   subscriptions.
+ *   Cache of the client instance state objects that are created in response to the client's
+ *   GetTelemetrySubscriptionRequest message.
+ *
+ *   Eviction Policy:
+ *      Elements stayed too long (beyond the TTL time period) would be cleaned up from the cache by running GC
+ *      which is is an asynchronous task triggered by ClientMetricsManager.
+ *
+ *   Invalidation (keeping the client instance state in sync with client metric subscriptions):
+ *      Whenever a client metric subscription is added/deleted/modified cache is invalidated to make sure that
+ *      cached elements reflects the changes made to the client metric subscriptions.
  */
 object  ClientMetricsCache {
   val DEFAULT_TTL_MS = 60 * 1000  // One minute
@@ -40,8 +44,10 @@ object  ClientMetricsCache {
   def getInstance = cacheInstance
   val getSize = getInstance.getSize
 
-  // Launches the asynchronous task to clean the client metric subscriptions that are expired in the cache.
-  // TODO: in future, if needed, we may need to run this task periodically regardless of the size of the cache
+  /**
+   * Launches the asynchronous task to clean the client metric subscriptions that are expired in the cache.
+   * TODO: in future, if needed, we may need to run this task periodically regardless of the size of the cache
+   */
   def runGC()=  {
     gcTs.synchronized {
       val currentTime = Calendar.getInstance.getTime
@@ -49,7 +55,8 @@ object  ClientMetricsCache {
         gcTs.setTime(currentTime.getTime)
         cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
-          case Failure(exception) => info(s"Client Metrics subscription cache cleanup failed ${exception.getMessage}")
+          case Failure(exception) =>
+            info(s"Client Metrics subscription cache cleanup failed ${exception.getMessage}")
         }
       }
     }
@@ -80,7 +87,9 @@ class ClientMetricsCache {
   //     2. Adding a new group -- Update the metrics by appending the new metrics from the new group
   //     3. Deleting an existing group -- Update the metrics by deleting the metrics from the deleted group.
   //     4. Updating an existing group. -- delete the old metrics and add the new metrics.
-  def invalidate(oldGroup: SubscriptionGroup, newGroup: SubscriptionGroup, operation: ClientMetricsCacheOperation) = {
+  def invalidate(oldGroup: SubscriptionGroup,
+                 newGroup: SubscriptionGroup,
+                 operation: ClientMetricsCacheOperation) = {
     operation match {
       case CM_SUBSCRIPTION_TTL => cleanupTtlEntries()
       case CM_SUBSCRIPTION_ADDED => addCMSubscriptionGroup(newGroup)
@@ -134,8 +143,10 @@ class ClientMetricsCache {
     affectedElements.foreach(x => _cache.replace(x.getId.toString, x))
   }
 
-  // Client instance specific state is maintained in broker memory up to MAX(60*1000, PushIntervalMs * 3) milliseconds
-  // There is no persistence of client instance metrics state across broker restarts or between brokers.
+  /**
+   * Client instance specific state is maintained in broker memory up to MAX(60*1000, PushIntervalMs * 3) milliseconds
+   * There is no persistence of client instance metrics state across the broker restarts or between brokers.
+   */
   private def cleanupTtlEntries() = {
     val expiredElements = new ListBuffer[CmClientInstanceState] ()
     _cache.values().forEach(x =>  {
