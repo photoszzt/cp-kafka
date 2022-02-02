@@ -4,7 +4,7 @@ import kafka.metrics.clientmetrics.ClientMetricsCacheOperation.{CM_SUBSCRIPTION_
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.{AllMetricsFlag, ClientMatchPattern, DeleteSubscription, PushIntervalMs, SubscriptionMetrics, configDef}
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM
-import org.apache.kafka.common.config.ConfigDef.Type.{BOOLEAN, INT, LIST, STRING}
+import org.apache.kafka.common.config.ConfigDef.Type.{BOOLEAN, INT, LIST}
 import org.apache.kafka.common.errors.{InvalidConfigurationException, InvalidRequestException}
 
 import java.util
@@ -48,7 +48,6 @@ object ClientMetricsConfig {
 
   object ClientMetrics {
     // Properties
-    val SubscriptionGroupName = "client.metrics.subscription.group.name"
     val SubscriptionMetrics = "client.metrics.subscription.metrics"
     val ClientMatchPattern = "client.metrics.subscription.client.match"
     val PushIntervalMs = "client.metrics.push.interval.ms"
@@ -59,7 +58,6 @@ object ClientMetricsConfig {
 
     // Definitions
     val configDef = new ConfigDef()
-      .define(SubscriptionGroupName, STRING, MEDIUM, "Name of the metric subscription group")
       .define(SubscriptionMetrics, LIST, MEDIUM, "List of the subscribed metrics")
       .define(ClientMatchPattern, LIST, MEDIUM, "Pattern used to find the matching clients")
       .define(PushIntervalMs, INT, DEFAULT_PUSH_INTERVAL, MEDIUM, "Interval that a client can push the metrics")
@@ -85,7 +83,6 @@ object ClientMetricsConfig {
     def validateProperties(properties :Properties) = {
       val names = configDef.names
       properties.keySet().forEach(x => require(names.contains(x), s"Unknown client metric configuration: $x"))
-      require(properties.containsKey(SubscriptionGroupName), s"Missing parameter ${SubscriptionGroupName}")
 
       // If the command is to delete the subscription then we do not expect any other parameters to be in the list.
       // Otherwise validate the rest of the parameters.
@@ -124,7 +121,7 @@ object ClientMetricsConfig {
     } else {
       val clientMatchPattern = toList(parsed.get(ClientMatchPattern))
       val pushInterval = parsed.get(PushIntervalMs).asInstanceOf[Int]
-      val allMetricsSubscribed = parsed.getOrDefault(AllMetricsFlag, javaFalse).asInstanceOf[java.lang.Boolean]
+      val allMetricsSubscribed = parsed.getOrDefault(AllMetricsFlag, javaFalse).asInstanceOf[Boolean]
       val metrics = if (allMetricsSubscribed) List("") else toList(parsed.get(SubscriptionMetrics))
       val newGroup = new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval, allMetricsSubscribed)
       val oldGroup = subscriptionMap.put(groupId, newGroup)

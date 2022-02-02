@@ -469,10 +469,11 @@ class ZkAdminManager(val config: KafkaConfig,
     resource -> ApiError.NONE
   }
 
-  private def alterClientMetricsSubscriptions(resource: ConfigResource, validateOnly: Boolean,
-                                              configProps: Properties, configEntriesMap: Map[String, String]): (ConfigResource, ApiError) = {
+  private def alterClientMetricsSubscriptions(resource: ConfigResource,
+                                              validateOnly: Boolean,
+                                              configProps: Properties,
+                                              configEntriesMap: Map[String, String]): (ConfigResource, ApiError) = {
     val subscriptionName = resource.name
-    validateConfigPolicy(resource, configEntriesMap)
     if (!validateOnly) {
       info(s"Updating client metrics subscription ${subscriptionName} with new configuration : ${toLoggableProps(resource, configProps).mkString(",")}")
       adminZkClient.changeClientMetricsConfig(subscriptionName,

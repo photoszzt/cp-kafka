@@ -2631,7 +2631,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         case ConfigResource.Type.BROKER =>
           authHelper.authorize(request.context, ALTER_CONFIGS, CLUSTER, CLUSTER_NAME)
         case ConfigResource.Type.CLIENT_METRICS =>
-          authHelper.authorize(request.context, ALTER_CONFIGS, CLIENT_METRICS, CLUSTER_NAME)
+          authHelper.authorize(request.context, ALTER_CONFIGS, CLIENT_METRICS, resource.name)
         case ConfigResource.Type.TOPIC =>
           authHelper.authorize(request.context, ALTER_CONFIGS, TOPIC, resource.name)
         case rt => throw new InvalidRequestException(s"Unexpected resource type $rt")

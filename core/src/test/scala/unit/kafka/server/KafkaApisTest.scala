@@ -23,7 +23,6 @@ import java.util
 import java.util.Arrays.asList
 import java.util.concurrent.TimeUnit
 import java.util.{Collections, Optional, Properties, Random}
-
 import kafka.api.{ApiVersion, KAFKA_0_10_2_IV0, KAFKA_2_2_IV1, LeaderAndIsr}
 import kafka.cluster.{Broker, Partition}
 import kafka.controller.{ControllerContext, KafkaController}
@@ -31,6 +30,7 @@ import kafka.coordinator.group.GroupCoordinatorConcurrencyTest.{JoinGroupCallbac
 import kafka.coordinator.group._
 import kafka.coordinator.transaction.{InitProducerIdResult, TransactionCoordinator}
 import kafka.log.AppendOrigin
+import kafka.metrics.ClientMetricsTestUtils
 import kafka.network.RequestChannel
 import kafka.server.QuotaFactory.QuotaManagers
 import kafka.server.metadata.{ConfigRepository, KRaftMetadataCache, MockConfigRepository, ZkMetadataCache}
@@ -462,6 +462,103 @@ class KafkaApisTest {
         unauthorizedTopic -> Errors.TOPIC_AUTHORIZATION_FAILED))
 
     verify(authorizer, adminManager)
+  }
+
+  @Test
+  def testAlterConfigsClientMetrics(): Unit = {
+    val subscriptionName = "client_metric_subscription_1"
+    val authorizedResource = new ConfigResource(ConfigResource.Type.CLIENT_METRICS, subscriptionName)
+
+    val authorizer: Authorizer = EasyMock.niceMock(classOf[Authorizer])
+    authorizeResource(authorizer, AclOperation.ALTER_CONFIGS, ResourceType.CLIENT_METRICS,
+      subscriptionName, AuthorizationResult.ALLOWED)
+
+    val props = ClientMetricsTestUtils.getDefaultProperties()
+    val configEntries = new util.ArrayList[AlterConfigsRequest.ConfigEntry]()
+    props.forEach((x, y) =>
+      configEntries.add(new AlterConfigsRequest.ConfigEntry(x.asInstanceOf[String], y.asInstanceOf[String])))
+
+    val configs = Map(authorizedResource -> new AlterConfigsRequest.Config(configEntries))
+
+    val requestHeader = new RequestHeader(ApiKeys.ALTER_CONFIGS, ApiKeys.ALTER_CONFIGS.latestVersion, clientId, 0)
+    val request = buildRequest(
+      new AlterConfigsRequest.Builder(configs.asJava, false).build(requestHeader.apiVersion))
+
+    EasyMock.expect(controller.isActive).andReturn(false)
+    val capturedResponse = expectNoThrottling(request)
+
+    EasyMock.expect(adminManager.alterConfigs(anyObject(), EasyMock.eq(false)))
+      .andReturn(Map(authorizedResource -> ApiError.NONE))
+
+    EasyMock.replay(replicaManager, clientRequestQuotaManager, requestChannel, authorizer, adminManager, controller)
+    createKafkaApis(authorizer = Some(authorizer)).handleAlterConfigsRequest(request)
+    verifyAlterConfigResult(capturedResponse, Map(subscriptionName -> Errors.NONE))
+    verify(authorizer, adminManager)
+  }
+
+  @Test
+  def testDescribeConfigsClientMetrics(): Unit = {
+    val authorizer: Authorizer = EasyMock.niceMock(classOf[Authorizer])
+
+    val operation = AclOperation.DESCRIBE_CONFIGS
+    val resourceType = ResourceType.CLIENT_METRICS
+    val resourceName = "client_metric_subscription_1"
+    val requestHeader =
+      new RequestHeader(ApiKeys.DESCRIBE_CONFIGS, ApiKeys.DESCRIBE_CONFIGS.latestVersion, clientId, 0)
+
+    val expectedActions = Seq(
+      new Action(operation, new ResourcePattern(resourceType, resourceName, PatternType.LITERAL),
+        1, true, true)
+    )
+
+    // Verify that authorize is only called once
+    EasyMock.expect(authorizer.authorize(anyObject[RequestContext], EasyMock.eq(expectedActions.asJava)))
+      .andReturn(Seq(AuthorizationResult.ALLOWED).asJava)
+      .once()
+
+    val resource = new ConfigResource(ConfigResource.Type.CLIENT_METRICS, resourceName)
+    val configRepository: ConfigRepository = EasyMock.strictMock(classOf[ConfigRepository])
+    val cmConfigs = ClientMetricsTestUtils.getDefaultProperties()
+    EasyMock.expect(configRepository.config(resource)).andReturn(cmConfigs)
+
+    metadataCache =
+      EasyMock.partialMockBuilder(classOf[ZkMetadataCache])
+        .withConstructor(classOf[Int])
+        .withArgs(Int.box(brokerId))  // Need to box it for Scala 2.12 and before
+        .addMockedMethod("contains", classOf[String])
+        .createMock()
+
+    expect(metadataCache.contains(resourceName)).andReturn(true)
+
+    val describeConfigsRequest = new DescribeConfigsRequest.Builder(new DescribeConfigsRequestData()
+      .setIncludeSynonyms(true)
+      .setResources(List(new DescribeConfigsRequestData.DescribeConfigsResource()
+        .setResourceName(resourceName)
+        .setResourceType(ConfigResource.Type.CLIENT_METRICS.id)).asJava))
+      .build(requestHeader.apiVersion)
+    val request = buildRequest(describeConfigsRequest,
+      requestHeader = Option(requestHeader))
+    val capturedResponse = expectNoThrottling(request)
+
+    EasyMock.replay(metadataCache, replicaManager, clientRequestQuotaManager, requestChannel,
+      authorizer, configRepository, adminManager)
+
+    createKafkaApis(authorizer = Some(authorizer), configRepository = configRepository)
+      .handleDescribeConfigsRequest(request)
+
+    verify(authorizer, replicaManager)
+
+    val response = capturedResponse.getValue.asInstanceOf[DescribeConfigsResponse]
+    val results = response.data().results()
+
+    assertEquals(1, results.size())
+    val describeConfigsResult: DescribeConfigsResult = results.get(0)
+
+    assertEquals(ConfigResource.Type.CLIENT_METRICS.id, describeConfigsResult.resourceType())
+    assertEquals(resourceName, describeConfigsResult.resourceName())
+
+    val configs = describeConfigsResult.configs()
+    assertEquals(cmConfigs.size(), configs.size())
   }
 
   @Test

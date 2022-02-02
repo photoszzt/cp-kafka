@@ -19,9 +19,6 @@ class ClientMetricsConfigValidationTest {
     // Test-1: Missing parameters (add one after one until all the required params are added)
     assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
 
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, groupName)
-    assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
-
     props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, 2000.toString)
     assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
 
@@ -40,14 +37,11 @@ class ClientMetricsConfigValidationTest {
     // TEST-2: Delete the metric subscription
     props.clear()
     props.put(ClientMetricsConfig.ClientMetrics.DeleteSubscription, "true")
-    assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, groupName)
     ClientMetricsConfig.validateConfig(groupName, props)
 
     // TEST-3: subscription with all metrics flag
     props.clear()
     props.put(ClientMetricsConfig.ClientMetrics.AllMetricsFlag, "true")
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, groupName)
     assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchingPattern)
     assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))

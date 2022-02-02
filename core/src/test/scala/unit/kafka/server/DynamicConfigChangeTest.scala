@@ -24,7 +24,8 @@ import java.util.Properties
 import java.util.concurrent.ExecutionException
 import kafka.integration.KafkaServerTestHarness
 import kafka.log.LogConfig._
-import kafka.metrics.clientmetrics.{CmClientInformation, ClientMetricsConfig}
+import kafka.metrics.ClientMetricsTestUtils
+import kafka.metrics.clientmetrics.{ClientMetricsConfig, CmClientInformation}
 import kafka.utils._
 import kafka.server.Constants._
 import kafka.zk.ConfigEntityChangeNotificationZNode
@@ -310,11 +311,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     val pattern2 = CmClientInformation.CLIENT_SOFTWARE_VERSION + " =     11.*   "
     val patternsList = List(pattern1, pattern2)
 
-    val props = new Properties()
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, configEntityName)
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics)
-    props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, patternsList.mkString(","))
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
+    val props = ClientMetricsTestUtils.getDefaultProperties()
 
     // ********  Test Create the new client subscription with multiple client matching patterns *********
     updateClientSubscription(configEntityName, props, () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
@@ -334,11 +331,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     val clientMatchingPattern = "client_instance_id=b69cc35a-7a54-4790-aa69-cc2bd4ee4538"
     val pushInterval = 30 * 1000 // 30 seconds
 
-    val props = new Properties()
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionGroupName, configEntityName)
-    props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics)
+    val props = ClientMetricsTestUtils.getDefaultProperties()
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchingPattern)
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
 
     // ********  Test-1 Create the new client subscription *********
     updateClientSubscription(configEntityName, props, () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)

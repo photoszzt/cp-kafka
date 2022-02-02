@@ -112,29 +112,6 @@ object DynamicConfig {
     }
   }
 
-  //
-  //TODO: this may not be needed for the open source AK implementation may be needed for the Confluent deployment's
-  // default configuration which can be encoded in the kafka.properties file
-  //
-  object ClientMetrics {
-    // Properties
-    val SubscriptionGroupName = "client.metrics.subscription.group.name"
-    val SubscriptionMetric = "client.metrics.subscription.metrics"
-    val ClientMatchPattern = "client.metrics.subscription.client.match"
-    val PushIntervalMs = "client.metrics.push.interval.ms"
-
-    // Definitions
-    val clientMetricConfigDef = new ConfigDef()
-      .define(SubscriptionGroupName, STRING, MEDIUM, "Name of the metric subscription group")
-      .define(SubscriptionMetric, LIST, MEDIUM, "List of the subscribed metrics")
-      .define(ClientMatchPattern, LIST, MEDIUM, "Pattern used to find the matching clients")
-      .define(PushIntervalMs, INT, MEDIUM, "Interval that a client can push the metrics")
-
-    def names = clientMetricConfigDef.names
-
-    def validate(props: Properties) = DynamicConfig.validate(clientMetricConfigDef, props, customPropsAllowed = true)
-  }
-
   private def validate(configDef: ConfigDef, props: Properties, customPropsAllowed: Boolean) = {
     // Validate Names
     val names = configDef.names()

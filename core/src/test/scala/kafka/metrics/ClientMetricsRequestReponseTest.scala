@@ -41,7 +41,7 @@ class ClientMetricsRequestResponseTest {
     assertTrue(cmClient != null)
 
     assertTrue(response.throttleTimeMs() == 20)
-    assertTrue(response.deltaTemporality() == true)
+    assertTrue(response.deltaTemporality() == java.lang.Boolean.TRUE)
     assertTrue(response.pushIntervalMs() == cmClient.getPushIntervalMs)
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
 
@@ -94,7 +94,7 @@ class ClientMetricsRequestResponseTest {
 
     // Add second group that contains allMetrics flag set to true
     val props = new Properties
-    props.put(ClientMetricsConfig.ClientMetrics.AllMetricsFlag, true)
+    props.put(ClientMetricsConfig.ClientMetrics.AllMetricsFlag, "true")
     val sgroup1 = createCMSubscriptionGroup("cm_all_metrics", props)
     assertTrue(sgroup1 != null)
 
