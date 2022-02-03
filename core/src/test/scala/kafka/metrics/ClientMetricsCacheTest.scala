@@ -30,7 +30,8 @@ class ClientMetricsCacheTest {
     assertTrue(clientState == clientStateFromCache)
     assertTrue(clientStateFromCache.getSubscriptionGroups.size() == 1)
     assertTrue(clientStateFromCache.getPushIntervalMs == defaultPushInterval)
-    assertTrue(clientStateFromCache.metrics.size == 2 && clientStateFromCache.getMetrics.mkString(",").equals(defaultMetrics))
+    assertTrue(clientStateFromCache.metrics.size == 2 &&
+               clientStateFromCache.getMetrics.mkString(",").equals(defaultMetrics))
   }
 
   @Test
@@ -50,13 +51,15 @@ class ClientMetricsCacheTest {
     assertTrue(clientStateFromCache.getSubscriptionGroups.size() == 1)
     assertTrue(clientStateFromCache.getPushIntervalMs == defaultPushInterval)
     assertTrue(clientStateFromCache.getSubscriptionId != oldSubscriptionId)
-    assertTrue(clientStateFromCache.metrics.size == 2 && clientStateFromCache.getMetrics.mkString(",").equals(defaultMetrics))
+    assertTrue(clientStateFromCache.metrics.size == 2 &&
+      clientStateFromCache.getMetrics.mkString(",").equals(defaultMetrics))
   }
 
   @Test
   def testAddingMultipleSubscriptionGroups(): Unit = {
     val props = new Properties()
-    val clientMatchPatterns = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Java", s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.1.*")
+    val clientMatchPatterns = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Java",
+      s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.1.*")
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchPatterns.mkString(","))
 
     // TEST-1: CREATE new metric subscriptions and make sure client instance picks up those metrics.
@@ -89,7 +92,8 @@ class ClientMetricsCacheTest {
     assertTrue(afterAddingNewGroup.metrics.size == 3 &&
       afterAddingNewGroup.metrics.mkString(",").equals(defaultMetrics + "," + metrics3))
 
-    // TEST-3: UPDATE the first group metrics and make sure client instance picked up the change.
+    // TEST-3: UPDATE the first group metrics and make sure
+    // client instance picked up the change.
     val updated_metrics = "updated_metrics_for_clients"
     val updatedProps = new Properties()
     updatedProps.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, updated_metrics)
@@ -100,7 +104,8 @@ class ClientMetricsCacheTest {
     assertTrue(afterSecondUpdate.metrics.size == 2 &&
       afterSecondUpdate.metrics.mkString(",").equals(metrics3 + "," + updated_metrics))
 
-    // TEST3: DELETE the metrics subscription: Delete the first group and make sure client instance is updated
+    // TEST3: DELETE the metrics subscription: Delete the first group and make sure
+    // client instance is updated
     val props4 = new Properties()
     props4.put(ClientMetricsConfig.ClientMetrics.DeleteSubscription, "true")
     createCMSubscriptionGroup("cm_1", props4)
@@ -111,8 +116,10 @@ class ClientMetricsCacheTest {
     val afterDeletingGroup = getCM.getClientInstance(clientState.getId)
     assertTrue(afterAddingNewGroup.getId == afterDeletingGroup.getId)
     assertTrue(afterAddingNewGroup.getSubscriptionId != afterDeletingGroup.getSubscriptionId)
-    assertTrue(afterAddingNewGroup.getSubscriptionGroups.size() - afterDeletingGroup.getSubscriptionGroups.size() == 1)
-    assertTrue(afterDeletingGroup.metrics.size == 1 && afterDeletingGroup.metrics.mkString(",").equals(metrics3))
+    assertTrue(afterAddingNewGroup.getSubscriptionGroups.size() -
+               afterDeletingGroup.getSubscriptionGroups.size() == 1)
+    assertTrue(afterDeletingGroup.metrics.size == 1 &&
+               afterDeletingGroup.metrics.mkString(",").equals(metrics3))
   }
 
   @Test
@@ -125,7 +132,8 @@ class ClientMetricsCacheTest {
     createCMSubscriptionGroup("cm_2", props2)
 
     val props3 = new Properties()
-    val clientPatterns3 = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Python", s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.*")
+    val clientPatterns3 = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Python",
+                               s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.*")
     val metrics3 = "org.apache.kafka/client.consumer.read.latency"
     props3.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics3)
     props3.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientPatterns3.mkString(","))
@@ -133,7 +141,8 @@ class ClientMetricsCacheTest {
 
     val props4 = new Properties()
     val clientPatterns4 = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Python",
-      s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.*",s"${CmClientInformation.CLIENT_SOURCE_ADDRESS} = 1.2.3.4")
+                               s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.*",
+                               s"${CmClientInformation.CLIENT_SOURCE_ADDRESS} = 1.2.3.4")
     val metrics4 = "org.apache.kafka/client.consumer.*.latency"
     props4.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientPatterns4.mkString(","))
     props4.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics4)
@@ -141,11 +150,16 @@ class ClientMetricsCacheTest {
     assertTrue(ClientMetricsConfig.getSubscriptionGroupCount == 4)
 
     val cache = ClientMetricsCache.getInstance
-    val client1 = createClientInstance(CmClientInformation("testClient1", "clientId1", "Java", "11.1.0.1", "", ""))
-    val client2 = createClientInstance(CmClientInformation("testClient2", "clientId2", "Python", "8.2.1", "abcd", "0"))
-    val client3 = createClientInstance(CmClientInformation("testClient3", "clientId3", "C++", "12.1", "192.168.1.7", "9093"))
-    val client4 = createClientInstance(CmClientInformation("testClient4", "clientId4", "Java", "11.1", "1.2.3.4", "8080"))
-    val client5 = createClientInstance(CmClientInformation("testClient2", "clientId5", "Python", "8.2.1", "1.2.3.4", "0"))
+    val client1 = createClientInstance(
+      CmClientInformation("testClient1", "clientId1", "Java", "11.1.0.1", "", ""))
+    val client2 = createClientInstance(
+      CmClientInformation("testClient2", "clientId2", "Python", "8.2.1", "abcd", "0"))
+    val client3 = createClientInstance(
+      CmClientInformation("testClient3", "clientId3", "C++", "12.1", "192.168.1.7", "9093"))
+    val client4 = createClientInstance(
+      CmClientInformation("testClient4", "clientId4", "Java", "11.1", "1.2.3.4", "8080"))
+    val client5 = createClientInstance(
+      CmClientInformation("testClient2", "clientId5", "Python", "8.2.1", "1.2.3.4", "0"))
     assertTrue(cache.getSize == 5)
 
     // Verifications:
@@ -169,15 +183,20 @@ class ClientMetricsCacheTest {
   @Test
   def testCacheGC(): Unit = {
     val cache = ClientMetricsCache.getInstance
-    val client1 = createClientInstance(CmClientInformation("testClient1", "clientId1", "Java", "11.1.0.1", "", ""))
-    val client2 = createClientInstance(CmClientInformation("testClient2", "clientId2", "Python", "8.2.1", "", ""))
-    val client3 = createClientInstance(CmClientInformation("testClient3", "clientId3", "C++", "12.1", "", ""))
+    val client1 = createClientInstance(
+      CmClientInformation("testClient1", "clientId1", "Java", "11.1.0.1", "", ""))
+    val client2 = createClientInstance(
+      CmClientInformation("testClient2", "clientId2", "Python", "8.2.1", "", ""))
+    val client3 = createClientInstance(
+      CmClientInformation("testClient3", "clientId3", "C++", "12.1", "", ""))
     assertTrue(cache.getSize == 3)
 
     // Modify client3's timestamp to meet the TTL expiry limit.
-    val ts = client3.getLastMetricsReceivedTs.getTime - (Math.max(3 * client3.getPushIntervalMs, DEFAULT_TTL_MS) + 10)
+    val ts = client3.getLastMetricsReceivedTs.getTime -
+                    (Math.max(3 * client3.getPushIntervalMs, DEFAULT_TTL_MS) + 10)
     client3.updateMetricsReceivedTs(ts)
-    ClientMetricsCache.gcTs.setTime(ClientMetricsCache.gcTs.getTime - (ClientMetricsCache.CM_CACHE_GC_INTERVAL + 10))
+    ClientMetricsCache.gcTs.setTime(ClientMetricsCache.gcTs.getTime -
+                    (ClientMetricsCache.CM_CACHE_GC_INTERVAL + 10))
 
     // Run the GC and wait until client3 entry is removed from the cache
     ClientMetricsCache.runGC()

@@ -499,18 +499,15 @@ class KafkaApisTest {
   @Test
   def testDescribeConfigsClientMetrics(): Unit = {
     val authorizer: Authorizer = EasyMock.niceMock(classOf[Authorizer])
-
     val operation = AclOperation.DESCRIBE_CONFIGS
     val resourceType = ResourceType.CLIENT_METRICS
     val resourceName = "client_metric_subscription_1"
     val requestHeader =
       new RequestHeader(ApiKeys.DESCRIBE_CONFIGS, ApiKeys.DESCRIBE_CONFIGS.latestVersion, clientId, 0)
-
     val expectedActions = Seq(
       new Action(operation, new ResourcePattern(resourceType, resourceName, PatternType.LITERAL),
         1, true, true)
     )
-
     // Verify that authorize is only called once
     EasyMock.expect(authorizer.authorize(anyObject[RequestContext], EasyMock.eq(expectedActions.asJava)))
       .andReturn(Seq(AuthorizationResult.ALLOWED).asJava)

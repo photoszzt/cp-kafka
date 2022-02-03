@@ -61,15 +61,14 @@ class ClientMetricsManager {
         .setAcceptedCompressionTypes(getSupportedCompressionTypes.asJava)
         .setPushIntervalMs(clientInstance.getPushIntervalMs)
         .setDeltaTemporality(true)
+        .setErrorCode(Errors.NONE.code())
+        .setRequestedMetrics(clientInstance.getMetrics.asJava)
 
     if (clientInstance.isDisabledForMetricsCollection) {
       info(s"Metrics collection is disabled for the client: ${clientInstance.getId.toString}")
       data.setErrorCode(Errors.INVALID_CONFIG.code)
-    } else {
-      data.setErrorCode(Errors.NONE.code())
     }
 
-    data.setRequestedMetrics(clientInstance.getMetrics.asJava)
     new GetTelemetrySubscriptionResponse(data)
   }
 

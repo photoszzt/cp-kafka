@@ -290,7 +290,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     verifyConnectionQuota(overrideQuotaIp, QuotaConfigs.IP_CONNECTION_RATE_DEFAULT)
   }
 
-  private def updateClientSubscription(subscriptionId :String, properties: Properties, waitingCondition: () => Boolean): Unit = {
+  private def updateClientSubscription(subscriptionId :String,
+                                       properties: Properties, waitingCondition: () => Boolean): Unit = {
     // Update the properties.
     adminZkClient.changeClientMetricsConfig(subscriptionId, properties)
 
@@ -305,7 +306,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       "Should contain a ConfigHandler for " + ConfigType.ClientMetrics)
 
     val configEntityName: String = "subscription-2"
-    val metrics = "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
+    val metrics =
+      "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
     val pushInterval = 30 * 1000 // 30 seconds
     val pattern1 = CmClientInformation.CLIENT_SOFTWARE_NAME + " = Java       "
     val pattern2 = CmClientInformation.CLIENT_SOFTWARE_VERSION + " =     11.*   "
@@ -314,7 +316,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     val props = ClientMetricsTestUtils.getDefaultProperties()
 
     // ********  Test Create the new client subscription with multiple client matching patterns *********
-    updateClientSubscription(configEntityName, props, () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
+    updateClientSubscription(configEntityName, props,
+                             () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
     val sgroup = ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
     assertTrue(sgroup.getPushIntervalMs == pushInterval)
     assertTrue(sgroup.getSubscribedMetrics.size == 2 && sgroup.getSubscribedMetrics.mkString(",").equals(metrics))
@@ -327,7 +330,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       "Should contain a ConfigHandler for " + ConfigType.ClientMetrics)
 
     val configEntityName: String = "subscription-1"
-    val metrics = "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
+    val metrics =
+      "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
     val clientMatchingPattern = "client_instance_id=b69cc35a-7a54-4790-aa69-cc2bd4ee4538"
     val pushInterval = 30 * 1000 // 30 seconds
 
@@ -335,7 +339,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchingPattern)
 
     // ********  Test-1 Create the new client subscription *********
-    updateClientSubscription(configEntityName, props, () =>  ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
+    updateClientSubscription(configEntityName, props,
+                             () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
     val sgroup = ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
     assertTrue(sgroup.getPushIntervalMs == pushInterval)
     assertTrue(sgroup.getSubscribedMetrics.size == 2 && sgroup.getSubscribedMetrics.mkString(",").equals(metrics))
@@ -345,8 +350,10 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     // *******  Test-2 Update the existing metric subscriptions  *********
     val updatedMetrics = "org.apache.kafka/client.producer.partition.latency"
     props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, updatedMetrics)
-    updateClientSubscription(configEntityName, props, () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.size == 1)
-    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.mkString(",").equals(updatedMetrics))
+    updateClientSubscription(configEntityName, props,
+      () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.size == 1)
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
+              .getSubscribedMetrics.mkString(",").equals(updatedMetrics))
 
     // ****** Test-3 restart the server and make sure that client metric subscription data is intact
     ClientMetricsConfig.clearClientSubscriptions()
@@ -357,11 +364,13 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     server.startup()
     assertTrue(ClientMetricsConfig.getSubscriptionGroupCount != 0)
     assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) != null)
-    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName).getSubscribedMetrics.mkString(",").equals(updatedMetrics))
+    assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName)
+              .getSubscribedMetrics.mkString(",").equals(updatedMetrics))
 
     // *******  Test-4 Delete the metric subscriptions  *********
     props.put(ClientMetricsConfig.ClientMetrics.DeleteSubscription, "true")
-    updateClientSubscription(configEntityName, props, () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
+    updateClientSubscription(configEntityName, props,
+                             () => ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
     assertTrue(ClientMetricsConfig.getClientSubscriptionGroup(configEntityName) == null)
   }
 

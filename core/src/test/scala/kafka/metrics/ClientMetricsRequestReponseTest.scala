@@ -6,6 +6,7 @@ import kafka.metrics.clientmetrics.{ClientMetricsConfig, CmClientInformation}
 import kafka.server.ClientMetricsManager
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.protocol.Errors
+import org.apache.kafka.common.record.CompressionType
 import org.apache.kafka.common.requests.{GetTelemetrySubscriptionRequest, GetTelemetrySubscriptionResponse}
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.{AfterEach, Test}
@@ -49,8 +50,11 @@ class ClientMetricsRequestResponseTest {
     response.requestedMetrics().forEach(x => assertTrue(cmClient.getMetrics.contains(x)))
 
     assertTrue(response.acceptedCompressionTypes().size() == ClientMetricsManager.getSupportedCompressionTypes.size)
-    response.acceptedCompressionTypes().forEach(x =>
-      assertTrue(ClientMetricsManager.getSupportedCompressionTypes.contains(x)))
+
+    response.acceptedCompressionTypes().forEach(x => {
+      assertTrue(ClientMetricsManager.getSupportedCompressionTypes.contains(x))
+      assertTrue(CompressionType.values().contains(CompressionType.forId(x.toInt)))
+    })
   }
 
   @Test def testRequestAndResponseWithNoMatchingMetrics(): Unit = {

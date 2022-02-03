@@ -5,12 +5,11 @@ import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.{AllMetrics
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM
 import org.apache.kafka.common.config.ConfigDef.Type.{BOOLEAN, INT, LIST}
-import org.apache.kafka.common.errors.{InvalidConfigurationException, InvalidRequestException}
+import org.apache.kafka.common.errors.InvalidRequestException
 
 import java.util
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -28,22 +27,10 @@ object ClientMetricsConfig {
                           allMetricsSubscribed: Boolean = false) {
     def getId = subscriptionGroup
     def getPushIntervalMs = pushIntervalMs
-    val clientMatchingPatterns = parseClientMatchingPatterns(matchingPatternsList)
+    val clientMatchingPatterns = CmClientInformation.parseMatchingPatterns(matchingPatternsList)
     def getClientMatchingPatterns = clientMatchingPatterns
     def getSubscribedMetrics = subscribedMetrics
     def getAllMetricsSubscribed = allMetricsSubscribed
-
-    private def parseClientMatchingPatterns(patterns: List[String]) : Map[String, String] = {
-      val patternsMap = mutable.Map[String, String]()
-      patterns.foreach(x =>  {
-        val nameValuePair = x.split("=").map(x => x.trim)
-        if (nameValuePair.size != 2) {
-          throw new InvalidConfigurationException("Illegal client matching pattern: " + x)
-        }
-        patternsMap += (nameValuePair(0) -> nameValuePair(1))
-      })
-      patternsMap.toMap
-    }
   }
 
   object ClientMetrics {

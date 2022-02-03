@@ -6,6 +6,7 @@ import kafka.metrics.clientmetrics.ClientMetricsCacheOperation.{CM_SUBSCRIPTION_
 import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionGroup
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.errors.InvalidRequestException
+import org.apache.log4j.helpers.LogLog.error
 
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
@@ -56,7 +57,7 @@ object  ClientMetricsCache {
         cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
           case Failure(exception) =>
-            info(s"Client Metrics subscription cache cleanup failed ${exception.getMessage}")
+            error(s"Client Metrics subscription cache cleanup failed ${exception.getMessage}")
         }
       }
     }
@@ -82,7 +83,8 @@ class ClientMetricsCache {
   def get(id: Uuid): CmClientInstanceState = _cache.get(id.toString)
   def clear() = _cache.clear()
 
-  // Invalidates the client metrics cache by iterating through all the client instances and do one of the following:
+  // Invalidates the client metrics cache by iterating through all the client instances and
+  // do one of the following:
   //     1. TTL operation -- Cleans up all the cache entries that are expired beyond TTL allowed time.
   //     2. Adding a new group -- Update the metrics by appending the new metrics from the new group
   //     3. Deleting an existing group -- Update the metrics by deleting the metrics from the deleted group.
@@ -144,7 +146,7 @@ class ClientMetricsCache {
   }
 
   /**
-   * Client instance specific state is maintained in broker memory up to MAX(60*1000, PushIntervalMs * 3) milliseconds
+   * Client instance state is maintained in broker memory up to Max(60*1000, PushIntervalMs * 3) milliseconds
    * There is no persistence of client instance metrics state across the broker restarts or between brokers.
    */
   private def cleanupTtlEntries() = {
