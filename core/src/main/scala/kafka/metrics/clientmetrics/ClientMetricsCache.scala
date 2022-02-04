@@ -1,3 +1,19 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package kafka.metrics.clientmetrics
 
 import kafka.Kafka.info
@@ -30,7 +46,7 @@ object ClientMetricsCacheOperation extends Enumeration {
  *
  *   Eviction Policy:
  *      Elements stayed too long (beyond the TTL time period) would be cleaned up from the cache by running GC
- *      which is is an asynchronous task triggered by ClientMetricsManager.
+ *      which is an asynchronous task triggered by ClientMetricsManager.
  *
  *   Invalidation (keeping the client instance state in sync with client metric subscriptions):
  *      Whenever a client metric subscription is added/deleted/modified cache is invalidated to make sure that
@@ -57,7 +73,7 @@ object  ClientMetricsCache {
         cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
           case Failure(exception) =>
-            error(s"Client Metrics subscription cache cleanup failed ${exception.getMessage}")
+            error(s"Client Metrics subscription cache cleanup failed: ${exception.getMessage}")
         }
       }
     }
@@ -77,10 +93,10 @@ object  ClientMetricsCache {
 }
 
 class ClientMetricsCache {
-  val _cache = new ConcurrentHashMap[String, CmClientInstanceState]()
+  val _cache = new ConcurrentHashMap[Uuid, CmClientInstanceState]()
   def getSize = _cache.size()
-  def add(instance: CmClientInstanceState)= _cache.put(instance.getId.toString, instance)
-  def get(id: Uuid): CmClientInstanceState = _cache.get(id.toString)
+  def add(instance: CmClientInstanceState)= _cache.put(instance.getId, instance)
+  def get(id: Uuid): CmClientInstanceState = _cache.get(id)
   def clear() = _cache.clear()
 
   // Invalidates the client metrics cache by iterating through all the client instances and
@@ -97,7 +113,7 @@ class ClientMetricsCache {
       case CM_SUBSCRIPTION_ADDED => addCMSubscriptionGroup(newGroup)
       case CM_SUBSCRIPTION_DELETED => deleteCmSubscriptionGroup(oldGroup)
       case CM_SUBSCRIPTION_UPDATED => updateCmSubscriptionGroup(oldGroup, newGroup)
-      case _ => throw new InvalidRequestException("Invalid request, can not update the client metrics cache")
+      case _ => throw new InvalidRequestException("Invalid client metrics cache operation")
     }
   }
 
@@ -110,7 +126,7 @@ class ClientMetricsCache {
           affectedElements.append(CmClientInstanceState(v))
         }
     )
-    affectedElements.foreach(x => _cache.replace(x.getId.toString, x))
+    affectedElements.foreach(x => _cache.replace(x.getId, x))
   }
 
   private def deleteCmSubscriptionGroup(cmSubscriptionGroup: SubscriptionGroup) = {
@@ -122,7 +138,7 @@ class ClientMetricsCache {
           affectedElements.append(CmClientInstanceState(v))
       }
     )
-    affectedElements.foreach(x => _cache.replace(x.getId.toString, x))
+    affectedElements.foreach(x => _cache.replace(x.getId, x))
   }
 
   private def updateCmSubscriptionGroup(oldGroup: SubscriptionGroup, newGroup: SubscriptionGroup) = {
@@ -142,7 +158,7 @@ class ClientMetricsCache {
       }
     })
 
-    affectedElements.foreach(x => _cache.replace(x.getId.toString, x))
+    affectedElements.foreach(x => _cache.replace(x.getId, x))
   }
 
   /**
@@ -157,8 +173,8 @@ class ClientMetricsCache {
       }
     })
     expiredElements.foreach( x => {
-      info(s"Client subscription entry ${x.getId.toString} is expired removing it from the cache")
-      _cache.remove(x.getId.toString)
+      info(s"Client subscription entry ${x.getId} is expired removing it from the cache")
+      _cache.remove(x.getId)
     })
   }
 

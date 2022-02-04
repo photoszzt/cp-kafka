@@ -10,7 +10,7 @@ import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.CompressionType
 import org.apache.kafka.common.requests.{GetTelemetrySubscriptionRequest, GetTelemetrySubscriptionResponse}
 
-import java.util.Properties
+import java.util.{Calendar, Properties}
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
@@ -27,8 +27,8 @@ object ClientMetricsManager {
     compressionTypes.toList
   }
 
-  def processGetSubscriptionRequest(request: RequestChannel.Request,
-                                    throttleMs: Int): GetTelemetrySubscriptionResponse = {
+  def processGetTelemetrySubscriptionRequest(request: RequestChannel.Request,
+                                             throttleMs: Int): GetTelemetrySubscriptionResponse = {
     val subscriptionRequest = request.body[GetTelemetrySubscriptionRequest]
     val clientInfo = CmClientInformation(request, subscriptionRequest.getClientInstanceId.toString)
     _instance.processGetSubscriptionRequest(subscriptionRequest, clientInfo, throttleMs)
@@ -66,8 +66,9 @@ class ClientMetricsManager {
 
     if (clientInstance.isDisabledForMetricsCollection) {
       info(s"Metrics collection is disabled for the client: ${clientInstance.getId.toString}")
-      data.setErrorCode(Errors.INVALID_CONFIG.code)
     }
+
+    clientInstance.updateMetricsReceivedTs(Calendar.getInstance.getTime.getTime)
 
     new GetTelemetrySubscriptionResponse(data)
   }

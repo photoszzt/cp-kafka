@@ -1,3 +1,19 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package kafka.metrics.clientmetrics
 
 import kafka.metrics.clientmetrics.ClientMetricsCacheOperation.{CM_SUBSCRIPTION_ADDED, CM_SUBSCRIPTION_DELETED, CM_SUBSCRIPTION_UPDATED}
@@ -76,6 +92,8 @@ object ClientMetricsConfig {
       if (!properties.containsKey(DeleteSubscription)) {
         require(properties.containsKey(ClientMatchPattern), s"Missing parameter ${ClientMatchPattern}")
         require(properties.containsKey(PushIntervalMs), s"Missing parameter ${PushIntervalMs}")
+        require(Integer.parseInt(properties.get(PushIntervalMs).toString) >= 0, s"Invalid parameter ${PushIntervalMs}")
+
         // If all metrics flag is specified then there is no need for having the metrics parameter
         if (!properties.containsKey(AllMetricsFlag)) {
           require(properties.containsKey(SubscriptionMetrics), s"Missing parameter ${SubscriptionMetrics}")

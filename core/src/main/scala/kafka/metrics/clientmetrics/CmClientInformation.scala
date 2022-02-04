@@ -1,3 +1,19 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package kafka.metrics.clientmetrics
 
 import kafka.Kafka.info
@@ -26,16 +42,18 @@ object CmClientInformation {
 
   def apply(request: RequestChannel.Request, clientInstanceId: String): CmClientInformation = {
     val instance = new CmClientInformation
-    instance.init(clientInstanceId, request.context.clientId(), request.context.clientInformation.softwareName(),
-                  request.context.clientInformation.softwareVersion(), request.context.clientAddress.getHostAddress,
-                  request.context.clientAddress.getHostAddress )
+    val ctx = request.context
+    val softwareName = if (ctx.clientInformation != null) ctx.clientInformation.softwareName() else ""
+    val softwareVersion = if (ctx.clientInformation != null) ctx.clientInformation.softwareVersion() else ""
+    instance.init(clientInstanceId, ctx.clientId(), softwareName, softwareVersion,
+                  ctx.clientAddress.getHostAddress, ctx.clientAddress.getHostAddress)
     instance
   }
 
   def apply(clientInstanceId: String, clientId: String, softwareName: String,
-            softwareVersion: String, hostAddress: String, port: String): CmClientInformation = {
+            softwareVersion: String, clientHostAddress: String, clientPort: String): CmClientInformation = {
     val instance = new CmClientInformation
-    instance.init(clientInstanceId, clientId, softwareName, softwareVersion, hostAddress, port )
+    instance.init(clientInstanceId, clientId, softwareName, softwareVersion, clientHostAddress, clientPort)
     instance
   }
 
@@ -67,14 +85,14 @@ class CmClientInformation {
                    clientId: String,
                    softwareName: String,
                    softwareVersion: String,
-                   hostAddress: String,
-                   port: String): Unit = {
+                   clientHostAddress: String,
+                   clientPort: String): Unit = {
     attributesMap(CLIENT_INSTANCE_ID) = clientInstanceId
     attributesMap(CLIENT_ID) = clientId
     attributesMap(CLIENT_SOFTWARE_NAME) = softwareName
     attributesMap(CLIENT_SOFTWARE_VERSION) = softwareVersion
-    attributesMap(CLIENT_SOURCE_ADDRESS) = hostAddress
-    attributesMap(CLIENT_SOURCE_PORT) = port // TODO: how to get the client's port info.
+    attributesMap(CLIENT_SOURCE_ADDRESS) = clientHostAddress
+    attributesMap(CLIENT_SOURCE_PORT) = clientPort // TODO: how to get the client's port info.
   }
 
   def isMatched(matchingPatterns: Map[String, String]) : Boolean = {
