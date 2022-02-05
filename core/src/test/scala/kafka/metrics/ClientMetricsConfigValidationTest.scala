@@ -17,6 +17,7 @@
 package kafka.metrics
 
 import kafka.metrics.clientmetrics.ClientMetricsConfig
+import org.apache.kafka.common.errors.InvalidConfigurationException
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
@@ -43,7 +44,10 @@ class ClientMetricsConfigValidationTest {
     assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
 
     props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics)
-    assertThrows(classOf[IllegalArgumentException], () => ClientMetricsConfig.validateConfig(groupName, props))
+    ClientMetricsConfig.validateConfig(groupName, props)
+
+    props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, "client_software_name=*")
+    assertThrows(classOf[InvalidConfigurationException], () => ClientMetricsConfig.validateConfig(groupName, props))
 
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatchingPattern)
     ClientMetricsConfig.validateConfig(groupName, props)

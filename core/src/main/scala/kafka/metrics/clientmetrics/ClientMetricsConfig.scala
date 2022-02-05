@@ -90,13 +90,18 @@ object ClientMetricsConfig {
       // If the command is to delete the subscription then we do not expect any other parameters to be in the list.
       // Otherwise validate the rest of the parameters.
       if (!properties.containsKey(DeleteSubscription)) {
-        require(properties.containsKey(ClientMatchPattern), s"Missing parameter ${ClientMatchPattern}")
         require(properties.containsKey(PushIntervalMs), s"Missing parameter ${PushIntervalMs}")
         require(Integer.parseInt(properties.get(PushIntervalMs).toString) >= 0, s"Invalid parameter ${PushIntervalMs}")
 
         // If all metrics flag is specified then there is no need for having the metrics parameter
         if (!properties.containsKey(AllMetricsFlag)) {
           require(properties.containsKey(SubscriptionMetrics), s"Missing parameter ${SubscriptionMetrics}")
+        }
+
+        // Make sure that client match patterns are valid by parsing them.
+        if (properties.containsKey(ClientMatchPattern)) {
+          val propsList: List[String] = properties.getProperty(ClientMatchPattern).split(",").toList
+          CmClientInformation.parseMatchingPatterns(propsList)
         }
       }
     }

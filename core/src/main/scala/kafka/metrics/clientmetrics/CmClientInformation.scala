@@ -21,8 +21,8 @@ import kafka.metrics.clientmetrics.CmClientInformation._
 import kafka.network.RequestChannel
 import org.apache.kafka.common.errors.InvalidConfigurationException
 
+import java.util.regex.{Pattern, PatternSyntaxException}
 import scala.collection.mutable
-
 
 /**
  * Information from the client's metadata is gathered from the client's request.
@@ -61,19 +61,38 @@ object CmClientInformation {
    * Parses the client matching patterns and builds a map with entries that has
    * (PatternName, PatternValue) as the entries.
    *  Ex: "VERSION=1.2.3" would be converted to a map entry of (Version, 1.2.3)
+   *
+   *  NOTES:
+   *  1. Client match pattern splits the input into two parts separated by first occurance
+   *     of the character '='
+   *  2. '*' is considered as invalid client match pattern
    * @param patterns List of client matching pattern strings
    * @return
    */
   def parseMatchingPatterns(patterns: List[String]) : Map[String, String] = {
     val patternsMap = mutable.Map[String, String]()
-    patterns.foreach(x =>  {
-      val nameValuePair = x.split("=").map(x => x.trim)
-      if (nameValuePair.size != 2 || !matchersList.contains(nameValuePair(0))) {
-        throw new InvalidConfigurationException("Illegal client matching pattern: " + x)
-      }
-      patternsMap += (nameValuePair(0) -> nameValuePair(1))
-    })
+    patternsMap.clear()
+    if (patterns != null) {
+      patterns.foreach(x => {
+        val nameValuePair = x.split("=", 2).map(x => x.trim)
+        if (nameValuePair.size == 2 && matchersList.contains(nameValuePair(0)) && validRegExPattern(nameValuePair(1))) {
+          patternsMap += (nameValuePair(0) -> nameValuePair(1))
+        } else {
+          throw new InvalidConfigurationException("Illegal client matching pattern: " + x)
+        }
+      })
+    }
     patternsMap.toMap
+  }
+
+  private def validRegExPattern(inputPattern :String): Boolean = {
+    try {
+      Pattern.compile(inputPattern)
+      true
+    } catch {
+      case e: PatternSyntaxException =>
+        false
+    }
   }
 
 }
@@ -95,17 +114,23 @@ class CmClientInformation {
     attributesMap(CLIENT_SOURCE_PORT) = clientPort // TODO: how to get the client's port info.
   }
 
-  def isMatched(matchingPatterns: Map[String, String]) : Boolean = {
+  def isMatched(patterns: Map[String, String]) : Boolean = {
+    // Empty pattern or missing pattern still considered as a match
+    if (patterns == null || patterns.isEmpty) {
+      true
+    } else {
+      matchPatterns(patterns)
+    }
+  }
+
+  private def matchPatterns(matchingPatterns: Map[String, String]) : Boolean = {
     try {
-      if (matchingPatterns == null || matchingPatterns.isEmpty) {
-        throw new InvalidConfigurationException("Empty client metrics matching patterns")
-      }
       matchingPatterns.foreach {
       case (k, v) =>
-          val attribute = attributesMap.getOrElse(k, null)
-          if (attribute == null || !matchPattern(attribute, v)) {
-            throw new InvalidConfigurationException(k)
-          }
+        val attribute = attributesMap.getOrElse(k, null)
+        if (attribute == null || v.r.anchored.findAllMatchIn(attribute).isEmpty) {
+          throw new InvalidConfigurationException(k)
+        }
       }
       true
     } catch {
@@ -114,9 +139,4 @@ class CmClientInformation {
         false
     }
   }
-
-  private def matchPattern(inputStr: String, pattern: String) : Boolean = {
-    inputStr.matches(pattern)
-  }
-
 }
