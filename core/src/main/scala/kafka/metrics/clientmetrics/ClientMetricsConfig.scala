@@ -16,7 +16,6 @@
  */
 package kafka.metrics.clientmetrics
 
-import kafka.metrics.clientmetrics.ClientMetricsCacheOperation.{CM_SUBSCRIPTION_ADDED, CM_SUBSCRIPTION_DELETED, CM_SUBSCRIPTION_UPDATED}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics.{AllMetricsFlag, ClientMatchPattern, DeleteSubscription, PushIntervalMs, SubscriptionMetrics, configDef}
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM
@@ -127,7 +126,7 @@ object ClientMetricsConfig {
     val subscriptionDeleted = parsed.getOrDefault(DeleteSubscription, javaFalse).asInstanceOf[Boolean]
     if (subscriptionDeleted) {
       val deletedGroup = subscriptionMap.remove(groupId)
-      cache.invalidate(deletedGroup, null, CM_SUBSCRIPTION_DELETED)
+      cache.update(deletedGroup, null)
     } else {
       val clientMatchPattern = toList(parsed.get(ClientMatchPattern))
       val pushInterval = parsed.get(PushIntervalMs).asInstanceOf[Int]
@@ -135,10 +134,7 @@ object ClientMetricsConfig {
       val metrics = if (allMetricsSubscribed) List("") else toList(parsed.get(SubscriptionMetrics))
       val newGroup = new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval, allMetricsSubscribed)
       val oldGroup = subscriptionMap.put(groupId, newGroup)
-      val operation = if (oldGroup != null) CM_SUBSCRIPTION_UPDATED else CM_SUBSCRIPTION_ADDED
-
-      // Invalidate the the cache to absorb the changes from the new subscription group
-      cache.invalidate(oldGroup, newGroup, operation)
+      cache.update(oldGroup, newGroup)
     }
   }
 

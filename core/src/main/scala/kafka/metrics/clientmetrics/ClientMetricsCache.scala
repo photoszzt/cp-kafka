@@ -18,10 +18,8 @@ package kafka.metrics.clientmetrics
 
 import kafka.Kafka.info
 import kafka.metrics.clientmetrics.ClientMetricsCache.isExpired
-import kafka.metrics.clientmetrics.ClientMetricsCacheOperation.{CM_SUBSCRIPTION_ADDED, CM_SUBSCRIPTION_DELETED, CM_SUBSCRIPTION_TTL, CM_SUBSCRIPTION_UPDATED, ClientMetricsCacheOperation}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionGroup
 import org.apache.kafka.common.Uuid
-import org.apache.kafka.common.errors.InvalidRequestException
 import org.apache.log4j.helpers.LogLog.error
 
 import java.util.Calendar
@@ -87,7 +85,7 @@ object  ClientMetricsCache {
 
   private def cleanupExpiredEntries(reason: String): Future[Int] = Future {
     val preCleanupSize = cacheInstance.getSize
-    cacheInstance.invalidate(null, null, CM_SUBSCRIPTION_TTL)
+    cacheInstance.cleanupTtlEntries()
     preCleanupSize - cacheInstance.getSize
   }
 }
@@ -99,66 +97,40 @@ class ClientMetricsCache {
   def get(id: Uuid): CmClientInstanceState = _cache.get(id)
   def clear() = _cache.clear()
 
-  // Invalidates the client metrics cache by iterating through all the client instances and
-  // do one of the following:
-  //     1. TTL operation -- Cleans up all the cache entries that are expired beyond TTL allowed time.
-  //     2. Adding a new group -- Update the metrics by appending the new metrics from the new group
-  //     3. Deleting an existing group -- Update the metrics by deleting the metrics from the deleted group.
-  //     4. Updating an existing group. -- delete the old metrics and add the new metrics.
-  def invalidate(oldGroup: SubscriptionGroup,
-                 newGroup: SubscriptionGroup,
-                 operation: ClientMetricsCacheOperation) = {
-    operation match {
-      case CM_SUBSCRIPTION_TTL => cleanupTtlEntries()
-      case CM_SUBSCRIPTION_ADDED => addCMSubscriptionGroup(newGroup)
-      case CM_SUBSCRIPTION_DELETED => deleteCmSubscriptionGroup(oldGroup)
-      case CM_SUBSCRIPTION_UPDATED => updateCmSubscriptionGroup(oldGroup, newGroup)
-      case _ => throw new InvalidRequestException("Invalid client metrics cache operation")
+  /**
+   * Updates the client metric instance state objects that matches with the group that is being replaced.
+   * Since old subscription group and new subscription group may have different metrics and client match
+   * patterns hence find out all the elements that do the following:
+   *   - matches with oldGroup: delete the old group from the client instance
+   *   - matches with newGroup: add the new group to the client instance.
+   *  Finally, creates a new instance with the updated subscription groups and replace the old one.
+   * @param olGroup -- The group that is been deleted
+   * @param newGroup -- New group that has been added
+   */
+  def update(olGroup: SubscriptionGroup, newGroup: SubscriptionGroup) = {
+    val iter = _cache.keys()
+    while (iter.hasMoreElements) {
+      val v = _cache.get(iter.nextElement())
+      if (updateCacheElement(v, olGroup, newGroup)) {
+        _cache.replace(v.getId, CmClientInstanceState(v))
+      }
     }
   }
 
-  // Updates the client instance objects
-  private def addCMSubscriptionGroup(cmSubscriptionGroup: SubscriptionGroup) = {
-    val affectedElements = new ListBuffer[CmClientInstanceState] ()
-    _cache.values().forEach(v =>
-        if (v.getClientInfo.isMatched(cmSubscriptionGroup.getClientMatchingPatterns)) {
-          v.getSubscriptionGroups.add(cmSubscriptionGroup)
-          affectedElements.append(CmClientInstanceState(v))
-        }
-    )
-    affectedElements.foreach(x => _cache.replace(x.getId, x))
-  }
+  private def updateCacheElement(instance: CmClientInstanceState,
+                                 oldGroup: SubscriptionGroup,
+                                 newGroup: SubscriptionGroup) = {
+    var changed: Boolean = false
+    if (oldGroup!= null && instance.getClientInfo.isMatched(oldGroup.getClientMatchingPatterns)) {
+      changed = true
+      instance.getSubscriptionGroups.remove(oldGroup)
+    }
 
-  private def deleteCmSubscriptionGroup(cmSubscriptionGroup: SubscriptionGroup) = {
-    val affectedElements = new ListBuffer[CmClientInstanceState] ()
-    _cache.values().forEach(v =>
-      if (v.getClientInfo.isMatched(cmSubscriptionGroup.getClientMatchingPatterns)) {
-        v.getSubscriptionGroups.remove(cmSubscriptionGroup)
-        if (!v.getSubscriptionGroups.isEmpty)
-          affectedElements.append(CmClientInstanceState(v))
-      }
-    )
-    affectedElements.foreach(x => _cache.replace(x.getId, x))
-  }
-
-  private def updateCmSubscriptionGroup(oldGroup: SubscriptionGroup, newGroup: SubscriptionGroup) = {
-    val affectedElements = new ListBuffer[CmClientInstanceState] ()
-    _cache.values().forEach(v => {
-      var changed: Boolean = false
-      if (v.getClientInfo.isMatched(oldGroup.getClientMatchingPatterns)) {
-        changed = true
-        v.getSubscriptionGroups.remove(oldGroup)
-      }
-      if (v.getClientInfo.isMatched(newGroup.getClientMatchingPatterns)) {
-        changed = true
-        v.getSubscriptionGroups.add(newGroup)
-      }
-      if (!v.getSubscriptionGroups.isEmpty && changed) {
-          affectedElements.append(CmClientInstanceState(v))
-      }
-    })
-
-    affectedElements.foreach(x => _cache.replace(x.getId, x))
+    if (newGroup != null && instance.getClientInfo.isMatched(newGroup.getClientMatchingPatterns)) {
+      changed = true
+      instance.getSubscriptionGroups.add(newGroup)
+    }
+    changed
   }
 
   /**
@@ -177,6 +149,5 @@ class ClientMetricsCache {
       _cache.remove(x.getId)
     })
   }
-
 
 }

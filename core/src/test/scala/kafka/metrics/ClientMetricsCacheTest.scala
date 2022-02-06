@@ -139,7 +139,7 @@ class ClientMetricsCacheTest {
   }
 
   @Test
-  def testMultipleClientsAndGroups(): Unit = {
+  def testMultipleGroupsAndClients(): Unit = {
     createCMSubscriptionGroup("cm_1")
 
     val metrics2 = "org.apache.kafka/client.producer.write.latency"
@@ -193,6 +193,61 @@ class ClientMetricsCacheTest {
 
     // Client 5 should have the metrics from the group sgroup3 and sgroup4
     assertTrue(client5.getMetrics.mkString(",").equals(metrics3 + "," + metrics4))
+  }
+
+  @Test
+  def testMultipleClientsAndGroups(): Unit = {
+
+    // Create the Client instances first
+    val cache = ClientMetricsCache.getInstance
+    val client1 = createClientInstance(CmClientInformation("t1", "c1", "Java", "11.1.0.1", "", "")).getId
+    val client2 = createClientInstance(CmClientInformation("t2", "c2", "Python", "8.2.1", "abcd", "0")).getId
+    val client3 = createClientInstance(CmClientInformation("t3", "c3", "C++", "12.1", "192.168.1.7", "9093")).getId
+    val client4 = createClientInstance(CmClientInformation("t4", "c4", "Java", "11.1", "1.2.3.4", "8080")).getId
+    val client5 = createClientInstance(CmClientInformation("t5", "c5", "Python", "8.2.1", "1.2.3.4", "0")).getId
+    assertTrue(cache.getSize == 5)
+
+    // Now create the groups.
+    createCMSubscriptionGroup("cm_1")
+
+    val metrics2 = "org.apache.kafka/client.producer.write.latency"
+    val props2 = new Properties()
+    props2.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics2)
+    createCMSubscriptionGroup("cm_2", props2)
+
+    val props3 = new Properties()
+    val clientPatterns3 = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Python",
+      s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.*")
+    val metrics3 = "org.apache.kafka/client.consumer.read.latency"
+    props3.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics3)
+    props3.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientPatterns3.mkString(","))
+    createCMSubscriptionGroup("cm_3", props3)
+
+    val props4 = new Properties()
+    val clientPatterns4 = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Python",
+      s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=8.*",
+      s"${CmClientInformation.CLIENT_SOURCE_ADDRESS} = 1.2.3.4")
+    val metrics4 = "org.apache.kafka/client.consumer.*.latency"
+    props4.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientPatterns4.mkString(","))
+    props4.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, metrics4)
+    createCMSubscriptionGroup("cm_4", props4)
+    assertTrue(ClientMetricsConfig.getSubscriptionGroupCount == 4)
+
+    // Verifications:
+    // Client 1 should have the metrics from the groups sgroup1 and sgroup2
+    assertTrue(getCM.getClientInstance(client1).getMetrics.mkString(",").equals(defaultMetrics + "," + metrics2))
+
+    // Client 2 should have the group3 which is just default metrics
+    assertTrue(getCM.getClientInstance(client2).getMetrics.mkString(",").equals(metrics3))
+
+    // client 3 should end up with nothing.
+    assertTrue(getCM.getClientInstance(client3).getMetrics.isEmpty)
+
+    // Client 4 should have the metrics from the groups sgroup1 and sgroup2
+    assertTrue(getCM.getClientInstance(client4).getMetrics.mkString(",").equals(defaultMetrics + "," + metrics2))
+
+    // Client 5 should have the metrics from the group sgroup3 and sgroup4
+    assertTrue(getCM.getClientInstance(client5).getMetrics.mkString(",").equals(metrics3 + "," + metrics4))
   }
 
 
