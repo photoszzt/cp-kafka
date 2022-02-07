@@ -17,25 +17,17 @@
 package kafka.metrics.clientmetrics
 
 import kafka.Kafka.info
-import kafka.metrics.clientmetrics.ClientMetricsCache.isExpired
+import kafka.metrics.clientmetrics.ClientMetricsCache.{DEFAULT_TTL_MS, cmCache}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionGroup
 import org.apache.kafka.common.Uuid
+import org.apache.kafka.common.cache.LRUCache
 import org.apache.log4j.helpers.LogLog.error
 
 import java.util.Calendar
-import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
-
-/**
- * Allowed operations on the ClientMetricsCache
- */
-object ClientMetricsCacheOperation extends Enumeration {
-  type ClientMetricsCacheOperation = Value
-  val CM_SUBSCRIPTION_ADDED, CM_SUBSCRIPTION_DELETED, CM_SUBSCRIPTION_UPDATED, CM_SUBSCRIPTION_TTL = Value
-}
 
 /**
  * Client Metrics Cache:
@@ -53,28 +45,74 @@ object ClientMetricsCacheOperation extends Enumeration {
 object  ClientMetricsCache {
   val DEFAULT_TTL_MS = 60 * 1000  // One minute
   val CM_CACHE_GC_INTERVAL = 5 * 60 * 1000 // 5 minutes
+  val CM_CACHE_MAX_SIZE = 8192 // What would be the right cache size?
   val gcTs = Calendar.getInstance.getTime
+  private val cmCache = new ClientMetricsCache(CM_CACHE_MAX_SIZE)
 
-  private val cacheInstance = new ClientMetricsCache
-  def getInstance = cacheInstance
-  val getSize = getInstance.getSize
+  def getInstance = cmCache
 
   /**
    * Launches the asynchronous task to clean the client metric subscriptions that are expired in the cache.
-   * TODO: in future, if needed, we may need to run this task periodically regardless of the size of the cache
    */
-  def runGC()=  {
+  def runGCIfNeeded(forceGC: Boolean = false): Unit = {
     gcTs.synchronized {
-      val currentTime = Calendar.getInstance.getTime
-      if (currentTime.getTime - gcTs.getTime > CM_CACHE_GC_INTERVAL) {
-        gcTs.setTime(currentTime.getTime)
-        cleanupExpiredEntries("GC").onComplete {
+      val timeElapsed = Calendar.getInstance.getTime.getTime - gcTs.getTime
+      if (forceGC || cmCache.getSize > CM_CACHE_MAX_SIZE && timeElapsed > CM_CACHE_GC_INTERVAL) {
+        cmCache.cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
-          case Failure(exception) =>
-            error(s"Client Metrics subscription cache cleanup failed: ${exception.getMessage}")
+          case Failure(e) => error(s"Client Metrics subscription cache cleanup failed: ${e.getMessage}")
         }
       }
     }
+  }
+
+}
+
+class ClientMetricsCache(maxSize: Int) {
+  private val _cache = new LRUCache[Uuid, ClientMetricsCacheValue](maxSize)
+  def getSize = _cache.size()
+  def clear() = _cache.clear()
+  def get(id: Uuid): CmClientInstanceState =  {
+    val value = _cache.get(id)
+    if (value != null) value.getClientInstance else null
+  }
+
+  /**
+   * Iterates through all the elements of the cache and updates the client instance state objects that
+   * matches the group that is being updated.
+   * @param oldGroup -- Subscription group that has been deleted from the client metrics subscription
+   * @param newGroup -- subscription group that has been added to the client metrics subscription
+   */
+  def invalidate(oldGroup: SubscriptionGroup, newGroup: SubscriptionGroup) = {
+    update(oldGroup, newGroup)
+  }
+
+  ///////// **** PRIVATE - METHODS **** /////////////
+  def add(instance: CmClientInstanceState)= {
+    _cache.synchronized(_cache.put(instance.getId, new ClientMetricsCacheValue(instance)))
+  }
+
+  private def remove(id: Uuid) : Unit = {
+    _cache.synchronized(_cache.remove(id))
+  }
+
+  private def updateValue(element: ClientMetricsCacheValue, instance: CmClientInstanceState)= {
+    _cache.synchronized(element.setClientInstance(instance))
+  }
+
+  private def update(oldGroup: SubscriptionGroup, newGroup: SubscriptionGroup) = {
+    _cache.entrySet().forEach(element =>  {
+      val clientInstance = element.getValue.getClientInstance
+      val updatedMetricSubscriptions = clientInstance.getSubscriptionGroups
+      if (oldGroup!= null && clientInstance.getClientInfo.isMatched(oldGroup.getClientMatchingPatterns)) {
+        updatedMetricSubscriptions.remove(oldGroup)
+      }
+      if (newGroup != null && clientInstance.getClientInfo.isMatched(newGroup.getClientMatchingPatterns)) {
+        updatedMetricSubscriptions.add(newGroup)
+      }
+      val newClientInstance = CmClientInstanceState(clientInstance, updatedMetricSubscriptions)
+      updateValue(element.getValue, newClientInstance)
+    })
   }
 
   private def isExpired(element: CmClientInstanceState) = {
@@ -83,71 +121,31 @@ object  ClientMetricsCache {
     delta > Math.max(3 * element.getPushIntervalMs, DEFAULT_TTL_MS)
   }
 
-  private def cleanupExpiredEntries(reason: String): Future[Int] = Future {
-    val preCleanupSize = cacheInstance.getSize
-    cacheInstance.cleanupTtlEntries()
-    preCleanupSize - cacheInstance.getSize
-  }
-}
-
-class ClientMetricsCache {
-  val _cache = new ConcurrentHashMap[Uuid, CmClientInstanceState]()
-  def getSize = _cache.size()
-  def add(instance: CmClientInstanceState)= _cache.put(instance.getId, instance)
-  def get(id: Uuid): CmClientInstanceState = _cache.get(id)
-  def clear() = _cache.clear()
-
-  /**
-   * Updates the client metric instance state objects that matches with the group that is being replaced.
-   * Since old subscription group and new subscription group may have different metrics and client match
-   * patterns hence find out all the elements that do the following:
-   *   - matches with oldGroup: delete the old group from the client instance
-   *   - matches with newGroup: add the new group to the client instance.
-   *  Finally, creates a new instance with the updated subscription groups and replace the old one.
-   * @param olGroup -- The group that is been deleted
-   * @param newGroup -- New group that has been added
-   */
-  def update(olGroup: SubscriptionGroup, newGroup: SubscriptionGroup) = {
-    val iter = _cache.keys()
-    while (iter.hasMoreElements) {
-      val v = _cache.get(iter.nextElement())
-      if (updateCacheElement(v, olGroup, newGroup)) {
-        _cache.replace(v.getId, CmClientInstanceState(v))
-      }
-    }
+  private def cleanupExpiredEntries(reason: String): Future[Long] = Future {
+    val preCleanupSize = cmCache.getSize
+    cmCache.cleanupTtlEntries()
+    preCleanupSize - cmCache.getSize
   }
 
-  private def updateCacheElement(instance: CmClientInstanceState,
-                                 oldGroup: SubscriptionGroup,
-                                 newGroup: SubscriptionGroup) = {
-    var changed: Boolean = false
-    if (oldGroup!= null && instance.getClientInfo.isMatched(oldGroup.getClientMatchingPatterns)) {
-      changed = true
-      instance.getSubscriptionGroups.remove(oldGroup)
-    }
-
-    if (newGroup != null && instance.getClientInfo.isMatched(newGroup.getClientMatchingPatterns)) {
-      changed = true
-      instance.getSubscriptionGroups.add(newGroup)
-    }
-    changed
-  }
-
-  /**
-   * Client instance state is maintained in broker memory up to Max(60*1000, PushIntervalMs * 3) milliseconds
-   * There is no persistence of client instance metrics state across the broker restarts or between brokers.
-   */
   private def cleanupTtlEntries() = {
-    val expiredElements = new ListBuffer[CmClientInstanceState] ()
-    _cache.values().forEach(x =>  {
-      if (isExpired(x)) {
-        expiredElements.append(x)
+    val expiredElements = new ListBuffer[Uuid] ()
+    _cache.entrySet().forEach(x => {
+      if (isExpired(x.getValue.clientInstance)) {
+        expiredElements.append(x.getValue.getClientInstance.getId)
       }
     })
-    expiredElements.foreach( x => {
-      info(s"Client subscription entry ${x.getId} is expired removing it from the cache")
-      _cache.remove(x.getId)
+    expiredElements.foreach(x => {
+      info(s"Client subscription entry ${x} is expired removing it from the cache")
+      remove(x)
     })
   }
 
+  // Wrapper class
+  class ClientMetricsCacheValue(instance: CmClientInstanceState) {
+    var clientInstance :CmClientInstanceState = instance
+    def getClientInstance = clientInstance
+    def setClientInstance(instance: CmClientInstanceState): Unit = {
+      clientInstance = instance
+    }
+  }
 }

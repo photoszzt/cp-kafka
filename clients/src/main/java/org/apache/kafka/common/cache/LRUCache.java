@@ -18,6 +18,7 @@ package org.apache.kafka.common.cache;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A cache implementing a least recently used policy.
@@ -52,5 +53,13 @@ public class LRUCache<K, V> implements Cache<K, V> {
     @Override
     public long size() {
         return cache.size();
+    }
+
+    public Set<Map.Entry<K,V>> entrySet() {
+        return cache.entrySet();
+    }
+
+    public void clear() {
+        cache.clear();
     }
 }

@@ -31,9 +31,11 @@ import scala.collection.mutable.ListBuffer
  */
 object CmClientInstanceState {
 
-  // Copy constructor
-  def apply(instance: CmClientInstanceState): CmClientInstanceState = {
-   create(instance.getId, instance.getClientInfo, instance.getSubscriptionGroups)
+  def apply(instance: CmClientInstanceState,
+            cmGroups: java.util.Collection[SubscriptionGroup]): CmClientInstanceState = {
+    val newInstance = create(instance.getId, instance.getClientInfo, cmGroups)
+    newInstance.updateMetricsReceivedTs(instance.getLastMetricsReceivedTs.getTime)
+    newInstance
   }
 
   def apply(id: Uuid,

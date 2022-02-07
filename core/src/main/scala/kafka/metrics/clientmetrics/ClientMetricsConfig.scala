@@ -120,13 +120,13 @@ object ClientMetricsConfig {
     valueList.toList
   }
 
-  def updateClientSubscription(groupId :String, properties: Properties, cache: ClientMetricsCache): Unit = {
+  def updateClientSubscription(groupId :String, properties: Properties): Unit = {
     val parsed = configDef.parse(properties)
     val javaFalse = java.lang.Boolean.FALSE
     val subscriptionDeleted = parsed.getOrDefault(DeleteSubscription, javaFalse).asInstanceOf[Boolean]
     if (subscriptionDeleted) {
       val deletedGroup = subscriptionMap.remove(groupId)
-      cache.update(deletedGroup, null)
+      ClientMetricsCache.getInstance.invalidate(deletedGroup, null)
     } else {
       val clientMatchPattern = toList(parsed.get(ClientMatchPattern))
       val pushInterval = parsed.get(PushIntervalMs).asInstanceOf[Int]
@@ -134,7 +134,7 @@ object ClientMetricsConfig {
       val metrics = if (allMetricsSubscribed) List("") else toList(parsed.get(SubscriptionMetrics))
       val newGroup = new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval, allMetricsSubscribed)
       val oldGroup = subscriptionMap.put(groupId, newGroup)
-      cache.update(oldGroup, newGroup)
+      ClientMetricsCache.getInstance.invalidate(oldGroup, newGroup)
     }
   }
 

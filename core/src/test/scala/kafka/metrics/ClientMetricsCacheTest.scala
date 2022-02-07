@@ -29,7 +29,7 @@ class ClientMetricsCacheTest {
   @AfterEach
   def cleanup(): Unit = {
     ClientMetricsConfig.clearClientSubscriptions()
-    getCM.clearCache()
+    ClientMetricsCache.getInstance.clear()
   }
 
   @Test
@@ -165,7 +165,6 @@ class ClientMetricsCacheTest {
     createCMSubscriptionGroup("cm_4", props4)
     assertTrue(ClientMetricsConfig.getSubscriptionGroupCount == 4)
 
-    val cache = ClientMetricsCache.getInstance
     val client1 = createClientInstance(
       CmClientInformation("testClient1", "clientId1", "Java", "11.1.0.1", "", ""))
     val client2 = createClientInstance(
@@ -176,7 +175,7 @@ class ClientMetricsCacheTest {
       CmClientInformation("testClient4", "clientId4", "Java", "11.1", "1.2.3.4", "8080"))
     val client5 = createClientInstance(
       CmClientInformation("testClient2", "clientId5", "Python", "8.2.1", "1.2.3.4", "0"))
-    assertTrue(cache.getSize == 5)
+    assertTrue(ClientMetricsCache.getInstance.getSize == 5)
 
     // Verifications:
     // Client 1 should have the metrics from the groups sgroup1 and sgroup2
@@ -197,15 +196,13 @@ class ClientMetricsCacheTest {
 
   @Test
   def testMultipleClientsAndGroups(): Unit = {
-
     // Create the Client instances first
-    val cache = ClientMetricsCache.getInstance
     val client1 = createClientInstance(CmClientInformation("t1", "c1", "Java", "11.1.0.1", "", "")).getId
     val client2 = createClientInstance(CmClientInformation("t2", "c2", "Python", "8.2.1", "abcd", "0")).getId
     val client3 = createClientInstance(CmClientInformation("t3", "c3", "C++", "12.1", "192.168.1.7", "9093")).getId
     val client4 = createClientInstance(CmClientInformation("t4", "c4", "Java", "11.1", "1.2.3.4", "8080")).getId
     val client5 = createClientInstance(CmClientInformation("t5", "c5", "Python", "8.2.1", "1.2.3.4", "0")).getId
-    assertTrue(cache.getSize == 5)
+    assertTrue(ClientMetricsCache.getInstance.getSize == 5)
 
     // Now create the groups.
     createCMSubscriptionGroup("cm_1")
@@ -270,8 +267,8 @@ class ClientMetricsCacheTest {
                     (ClientMetricsCache.CM_CACHE_GC_INTERVAL + 10))
 
     // Run the GC and wait until client3 entry is removed from the cache
-    ClientMetricsCache.runGC()
-    TestUtils.waitUntilTrue(() => cache.getSize == 2, "Failed to run GC on Client Metrics Cache", 6000)
+    ClientMetricsCache.runGCIfNeeded(true)
+    TestUtils.waitUntilTrue(() => ClientMetricsCache.getInstance.getSize == 2, "Failed to run GC on Client Metrics Cache", 6000)
 
     // Make sure that client3 is removed from the cache.
     assertTrue(cache.get(client3.getId) == null)

@@ -43,7 +43,6 @@ object ClientMetricsTestUtils {
     getCM.createClientInstance(Uuid.randomUuid(), selector)
   }
 
-
   def getDefaultProperties() :Properties = {
     val props = new Properties()
     props.put(ClientMetricsConfig.ClientMetrics.SubscriptionMetrics, defaultMetrics)

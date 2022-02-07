@@ -3,7 +3,7 @@ package kafka.server
 import kafka.Kafka.info
 import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation, CmClientInstanceState}
 import kafka.network.RequestChannel
-import kafka.server.ClientMetricsManager.{CM_CACHE_MAX_SIZE, getSupportedCompressionTypes}
+import kafka.server.ClientMetricsManager.getSupportedCompressionTypes
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.message.GetTelemetrySubscriptionsResponseData
 import org.apache.kafka.common.protocol.Errors
@@ -15,9 +15,6 @@ import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
 object ClientMetricsManager {
-  val CM_CACHE_GC_INTERVAL = 5 * 60 * 1000 // 5 minutes
-  val CM_CACHE_MAX_SIZE = 1024
-
   private val _instance = new ClientMetricsManager
   def getInstance = _instance
 
@@ -37,10 +34,7 @@ object ClientMetricsManager {
 }
 
 class ClientMetricsManager {
-  val clientInstanceCache = ClientMetricsCache.getInstance
-  def getCacheSize = clientInstanceCache.getSize
-  def clearCache() = clientInstanceCache.clear()
-  def getClientInstance(id: Uuid) = clientInstanceCache.get(id)
+  def getClientInstance(id: Uuid) = ClientMetricsCache.getInstance.get(id)
 
   def processGetSubscriptionRequest(subscriptionRequest: GetTelemetrySubscriptionRequest,
                                     clientInfo: CmClientInformation,
@@ -74,19 +68,16 @@ class ClientMetricsManager {
   }
 
   def updateSubscription(groupId :String, properties :Properties) = {
-    ClientMetricsConfig.updateClientSubscription(groupId, properties, clientInstanceCache)
+    ClientMetricsConfig.updateClientSubscription(groupId, properties)
   }
 
   def createClientInstance(clientInstanceId: Uuid, clientInfo: CmClientInformation): CmClientInstanceState = {
     val clientInstance = CmClientInstanceState(clientInstanceId, clientInfo,
                                                ClientMetricsConfig.getClientSubscriptionGroups)
-
     // Add to the cache and if cache size > max entries then time to make some room by running
     // GC to clean up all the expired entries in the cache.
-    clientInstanceCache.add(clientInstance)
-    if (clientInstanceCache.getSize >  CM_CACHE_MAX_SIZE) {
-      ClientMetricsCache.runGC()
-    }
+    ClientMetricsCache.getInstance.add(clientInstance)
+    ClientMetricsCache.runGCIfNeeded()
     clientInstance
   }
 

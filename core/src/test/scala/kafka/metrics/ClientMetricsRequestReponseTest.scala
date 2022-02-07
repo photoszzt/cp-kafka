@@ -18,7 +18,7 @@ package kafka.metrics
 
 import kafka.metrics.ClientMetricsTestUtils.{createCMSubscriptionGroup, getCM}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics
-import kafka.metrics.clientmetrics.{ClientMetricsConfig, CmClientInformation}
+import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation}
 import kafka.server.ClientMetricsManager
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.record.CompressionType
@@ -33,7 +33,7 @@ class ClientMetricsRequestResponseTest {
   @AfterEach
   def cleanup(): Unit = {
     ClientMetricsConfig.clearClientSubscriptions()
-    getCM.clearCache()
+    ClientMetricsCache.getInstance.clear()
   }
 
   private def sendGetSubscriptionRequest(clientInfo: CmClientInformation,
