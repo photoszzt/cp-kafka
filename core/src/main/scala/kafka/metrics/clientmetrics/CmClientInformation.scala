@@ -17,7 +17,7 @@
 package kafka.metrics.clientmetrics
 
 import kafka.Kafka.info
-import kafka.metrics.clientmetrics.CmClientInformation._
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_ID, CLIENT_INSTANCE_ID, CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION, CLIENT_SOURCE_ADDRESS, CLIENT_SOURCE_PORT, isValidParam}
 import kafka.network.RequestChannel
 import org.apache.kafka.common.errors.InvalidConfigurationException
 
@@ -28,18 +28,6 @@ import scala.collection.mutable
  * Information from the client's metadata is gathered from the client's request.
  */
 object CmClientInformation {
-  val CLIENT_ID = "client_id"
-  val CLIENT_INSTANCE_ID = "client_instance_id"
-  val CLIENT_SOFTWARE_NAME = "client_software_name"
-  val CLIENT_SOFTWARE_VERSION = "client_software_version"
-  val CLIENT_SOURCE_ADDRESS = "client_source_address"
-  val CLIENT_SOURCE_PORT = "client_source_port"
-
-  val matchersList = List(CLIENT_ID, CLIENT_INSTANCE_ID, CLIENT_SOFTWARE_NAME,
-                          CLIENT_SOFTWARE_VERSION, CLIENT_SOURCE_ADDRESS, CLIENT_SOURCE_PORT)
-
-  def getMatchers = matchersList
-
   def apply(request: RequestChannel.Request, clientInstanceId: String): CmClientInformation = {
     val instance = new CmClientInformation
     val ctx = request.context
@@ -75,7 +63,7 @@ object CmClientInformation {
     if (patterns != null) {
       patterns.foreach(x => {
         val nameValuePair = x.split("=", 2).map(x => x.trim)
-        if (nameValuePair.size == 2 && matchersList.contains(nameValuePair(0)) && validRegExPattern(nameValuePair(1))) {
+        if (nameValuePair.size == 2 && isValidParam(nameValuePair(0)) && validRegExPattern(nameValuePair(1))) {
           patternsMap += (nameValuePair(0) -> nameValuePair(1))
         } else {
           throw new InvalidConfigurationException("Illegal client matching pattern: " + x)

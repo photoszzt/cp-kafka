@@ -16,6 +16,7 @@
  */
 package kafka.metrics
 
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION}
 import kafka.metrics.clientmetrics.CmClientInformation
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.errors.InvalidConfigurationException
@@ -49,38 +50,30 @@ class ClientInstanceSelectorTest {
     assertFalse(selector.isMatched(Map("*" -> "*")))
     assertFalse(selector.isMatched(Map("*" -> "abc")))
     assertThrows(classOf[PatternSyntaxException],() =>
-      selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "*")))
+      selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "*")))
     assertThrows(classOf[PatternSyntaxException],() =>
-      selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "******")))
+      selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "******")))
     assertThrows(classOf[PatternSyntaxException],() =>
-      selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "*Something")))
+      selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "*Something")))
 
     // Make sure that pattern matching is anchored regex.
-    assertFalse(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Opensource.Apache.Java",
-      CmClientInformation.CLIENT_SOFTWARE_VERSION -> "8.1.*")))
-    assertFalse(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Apache.Java.D",
-      CmClientInformation.CLIENT_SOFTWARE_VERSION -> "8.1.*")))
+    assertFalse(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "O.Apache.Java", CLIENT_SOFTWARE_VERSION -> "8.1.*")))
+    assertFalse(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "Apache.Java.D", CLIENT_SOFTWARE_VERSION -> "8.1.*")))
 
     // Negative tests -  unknown matching entries.
     assertFalse(selector.isMatched(Map("a" -> "b")))
     assertFalse(selector.isMatched(Map("software" -> "Java")))
 
     // Negative tests -- Wrong matching patterns
-    assertFalse(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Apache.Java",
-      CmClientInformation.CLIENT_SOFTWARE_VERSION -> "8.1.*")))
-    assertFalse(selector.isMatched(
-      Map("AAA" -> "BBB", CmClientInformation.CLIENT_SOFTWARE_VERSION -> "89.2.0")))
-    assertFalse(selector.isMatched(
-      Map(CmClientInformation.CLIENT_SOFTWARE_VERSION -> "89.2.0", "AAA" -> "fff")))
+    assertFalse(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "Apache.Java", CLIENT_SOFTWARE_VERSION -> "8.1.*")))
+    assertFalse(selector.isMatched(Map("AAA" -> "BBB", CLIENT_SOFTWARE_VERSION -> "89.2.0")))
+    assertFalse(selector.isMatched(Map(CLIENT_SOFTWARE_VERSION -> "89.2.0", "AAA" -> "fff")))
 
     // Positive tests
-    assertTrue(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Apache.Java")))
-    assertTrue(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Apache.*",
-      CmClientInformation.CLIENT_SOFTWARE_VERSION -> "89.2.0")))
-    assertTrue(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Apa.he.*a",
-      CmClientInformation.CLIENT_SOFTWARE_VERSION -> "^8.*0")))
-    assertTrue(selector.isMatched(Map(CmClientInformation.CLIENT_SOFTWARE_NAME -> "Apache.Java$",
-      CmClientInformation.CLIENT_SOFTWARE_VERSION -> "8..2.*")))
+    assertTrue(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "Apache.Java")))
+    assertTrue(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "Apache.*", CLIENT_SOFTWARE_VERSION -> "89.2.0")))
+    assertTrue(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "Apa.he.*a", CLIENT_SOFTWARE_VERSION -> "^8.*0")))
+    assertTrue(selector.isMatched(Map(CLIENT_SOFTWARE_NAME -> "Apache.Java$", CLIENT_SOFTWARE_VERSION -> "8..2.*")))
   }
 
   @Test
@@ -88,19 +81,19 @@ class ClientInstanceSelectorTest {
     var res = CmClientInformation.parseMatchingPatterns(ClientMetricsTestUtils.defaultClientMatchPatters)
     assertTrue(res.size == 2)
 
-    var patterns = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=*")
+    var patterns = List(s"${CLIENT_SOFTWARE_NAME}=*")
     assertThrows(classOf[InvalidConfigurationException], () => CmClientInformation.parseMatchingPatterns(patterns))
 
-    patterns = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=*****")
+    patterns = List(s"${CLIENT_SOFTWARE_NAME}=*****")
     assertThrows(classOf[InvalidConfigurationException], () => CmClientInformation.parseMatchingPatterns(patterns))
 
     patterns = List("ABC=something")
     assertThrows(classOf[InvalidConfigurationException], () => CmClientInformation.parseMatchingPatterns(patterns))
 
-    patterns = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Java=1.4")
+    patterns = List(s"${CLIENT_SOFTWARE_NAME}=Java=1.4")
     res = CmClientInformation.parseMatchingPatterns(patterns)
     assertTrue(res.size == 1)
-    val value = res.get(CmClientInformation.CLIENT_SOFTWARE_NAME).get
+    val value = res.get(CLIENT_SOFTWARE_NAME).get
     assertTrue(value.equals("Java=1.4"))
 
     val patterns2 = ClientMetricsTestUtils.defaultClientMatchPatters ++ List("ABC=something")

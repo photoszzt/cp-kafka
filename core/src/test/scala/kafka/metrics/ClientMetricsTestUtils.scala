@@ -16,7 +16,8 @@
  */
 package kafka.metrics
 
-import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionGroup
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION}
+import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionInfo
 import kafka.metrics.clientmetrics.{ClientMetricsConfig, CmClientInformation, CmClientInstanceState}
 import kafka.server.ClientMetricsManager
 import org.apache.kafka.common.Uuid
@@ -30,7 +31,7 @@ object ClientMetricsTestUtils {
     "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
 
   val defaultClientMatchPatters =
-    List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Java", s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=11.1.*")
+    List(s"${CLIENT_SOFTWARE_NAME}=Java", s"${CLIENT_SOFTWARE_VERSION}=11.1.*")
 
   val cmInstance :ClientMetricsManager = ClientMetricsManager.getInstance
   def getCM = cmInstance
@@ -51,12 +52,12 @@ object ClientMetricsTestUtils {
     props
   }
 
-  def createCMSubscriptionGroup(groupName: String, overrideProps: Properties = null): SubscriptionGroup = {
+  def createCMSubscription(subscriptionId: String, overrideProps: Properties = null): SubscriptionInfo = {
     val props = getDefaultProperties()
     if (overrideProps != null) {
       overrideProps.entrySet().forEach(x => props.put(x.getKey, x.getValue))
     }
-    updateClientSubscription(groupName, props)
-    ClientMetricsConfig.getClientSubscriptionGroup(groupName)
+    updateClientSubscription(subscriptionId, props)
+    ClientMetricsConfig.getClientSubscriptionInfo(subscriptionId)
   }
 }

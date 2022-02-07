@@ -16,7 +16,8 @@
  */
 package kafka.metrics
 
-import kafka.metrics.ClientMetricsTestUtils.{createCMSubscriptionGroup, getCM}
+import kafka.metrics.ClientMetricsTestUtils.{createCMSubscription, getCM}
+import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics
 import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation}
 import kafka.server.ClientMetricsManager
@@ -43,8 +44,8 @@ class ClientMetricsRequestResponseTest {
   }
 
   @Test def testGetClientMetricsRequestAndResponse(): Unit = {
-    val sgroup1 = createCMSubscriptionGroup("cm_1")
-    assertTrue(sgroup1 != null)
+    val subscription1 = createCMSubscription("cm_1")
+    assertTrue(subscription1 != null)
 
     val clientInfo = CmClientInformation("testClient1", "clientId3", "Java", "11.1.0", "192.168.1.7", "9093")
     val response = sendGetSubscriptionRequest(clientInfo).data()
@@ -73,8 +74,8 @@ class ClientMetricsRequestResponseTest {
   }
 
   @Test def testRequestAndResponseWithNoMatchingMetrics(): Unit = {
-    val sgroup1 = createCMSubscriptionGroup("cm_2")
-    assertTrue(sgroup1 != null)
+    val subscription1 = createCMSubscription("cm_2")
+    assertTrue(subscription1 != null)
 
     // Create a python client that do not have any matching subscriptions.
     val clientInfo = CmClientInformation("testClient1", "clientId3", "Python", "11.1.0", "192.168.1.7", "9093")
@@ -84,22 +85,21 @@ class ClientMetricsRequestResponseTest {
 
     // Push interval must be set to the default push interval and requested metrics list should be empty
     assertTrue(response.pushIntervalMs() == ClientMetrics.DEFAULT_PUSH_INTERVAL &&
-               response.pushIntervalMs() != sgroup1.getPushIntervalMs)
+               response.pushIntervalMs() != subscription1.getPushIntervalMs)
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
     assertTrue(response.requestedMetrics().isEmpty)
 
     // Now create a client subscription with client id that matches with the client.
     val props = new Properties()
-    val clientMatch = List(s"${CmClientInformation.CLIENT_SOFTWARE_NAME}=Python",
-                           s"${CmClientInformation.CLIENT_SOFTWARE_VERSION}=11.1.*")
+    val clientMatch = List(s"${CLIENT_SOFTWARE_NAME}=Python", s"${CLIENT_SOFTWARE_VERSION}=11.1.*")
     props.put(ClientMetricsConfig.ClientMetrics.ClientMatchPattern, clientMatch.mkString(","))
-    val sgroup2 = createCMSubscriptionGroup("cm_2", props)
-    assertTrue(sgroup2 != null)
+    val subscription2 = createCMSubscription("cm_2", props)
+    assertTrue(subscription2 != null)
 
     // should have got the positive response with all the valid parameters
     response = sendGetSubscriptionRequest(clientInfo, clientInstanceId).data()
     cmClient = getCM.getClientInstance(clientInstanceId)
-    assertTrue(response.pushIntervalMs() == sgroup2.getPushIntervalMs)
+    assertTrue(response.pushIntervalMs() == subscription2.getPushIntervalMs)
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
     assertTrue(!response.requestedMetrics().isEmpty)
     response.requestedMetrics().forEach(x => assertTrue(cmClient.getMetrics.contains(x)))
@@ -108,14 +108,14 @@ class ClientMetricsRequestResponseTest {
   @Test def testRequestWithAllMetricsSubscription(): Unit = {
     val clientInfo = CmClientInformation("testClient1", "clientId3", "Java", "11.1.0", "192.168.1.7", "9093")
 
-    // Add first group with default metrics.
-    createCMSubscriptionGroup("group1")
+    // Add first subscription with default metrics.
+    createCMSubscription("subscription1")
 
-    // Add second group that contains allMetrics flag set to true
+    // Add second subscription that contains allMetrics flag set to true
     val props = new Properties
     props.put(ClientMetricsConfig.ClientMetrics.AllMetricsFlag, "true")
-    val sgroup1 = createCMSubscriptionGroup("cm_all_metrics", props)
-    assertTrue(sgroup1 != null)
+    val subscription1 = createCMSubscription("cm_all_metrics", props)
+    assertTrue(subscription1 != null)
 
     val response = sendGetSubscriptionRequest(clientInfo).data()
 
@@ -132,8 +132,8 @@ class ClientMetricsRequestResponseTest {
   @Test def testRequestWithDisabledClient(): Unit = {
     val clientInfo = CmClientInformation("testClient5", "clientId5", "Java", "11.1.0", "192.168.1.7", "9093")
 
-    val sgroup1 = createCMSubscriptionGroup("cm_4")
-    assertTrue(sgroup1 != null)
+    val subscription1 = createCMSubscription("cm_4")
+    assertTrue(subscription1 != null)
 
     // Submit a request to get the subscribed metrics
     var response = sendGetSubscriptionRequest(clientInfo).data()
@@ -142,15 +142,15 @@ class ClientMetricsRequestResponseTest {
     assertTrue(cmClient != null)
 
     val oldSubscriptionId = response.subscriptionId()
-    assertTrue(response.pushIntervalMs() == sgroup1.getPushIntervalMs)
+    assertTrue(response.pushIntervalMs() == subscription1.getPushIntervalMs)
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
-    response.requestedMetrics().forEach(x => assertTrue(sgroup1.getSubscribedMetrics.contains(x)))
+    response.requestedMetrics().forEach(x => assertTrue(subscription1.getSubscribedMetrics.contains(x)))
 
     // Now create a new client subscription with push interval set to 0.
     val props = new Properties()
     props.put(ClientMetrics.PushIntervalMs, 0.toString)
-    val sgroup2 = createCMSubscriptionGroup("cm_update_2_disable", props)
-    assertTrue(sgroup2 != null)
+    val subscription2 = createCMSubscription("cm_update_2_disable", props)
+    assertTrue(subscription2 != null)
 
     // should have got the invalid response with empty metrics list.
     // set the client instance id which is obtained in earlier request.

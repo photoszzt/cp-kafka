@@ -30,22 +30,66 @@ import scala.collection.mutable.ListBuffer
 /**
  * Client metric configuration related parameters and the supporting methods like validation and update methods
  * are defined in this class.
+ *
+ * SubscriptionInfo: Contains the client metric subscription information. Supported operations from the CLI are
+ * add/delete/update operations. Every subscription object contains the following parameters that are populated
+ * during the creation of the subscription through kafka-client-metrics.sh
+ * {
+ *   subscriptionId: Name/ID supplied by CLI during the creation of the client metric subscription.
+ *   subscribedMetrics: List of metric prefixes
+ *   pushIntervalMs: A positive integer value >=0  tells the client that how often a client can push the metrics
+ *   matchingPatternsList: List of client matching patterns, that are used by broker to match the client instance
+ *   with the subscription.
+ * }
+ *
+ * At present, CLI can pass the following parameters in AlterConfigRequest to add/delete/update the client metric
+ * subscription:
+ *
+ *  1. "client.metrics.subscription.metrics" value should be comma separated metrics list.
+ *      Ex: "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
+ *      OR "client.metrics.flag" must be set to 'true'
+ *
+ *  2. "client.metrics.push.interval.ms" should be set to a positive integer >= 0, value 0 is considered as an indication
+ *  to disable the metric collection from the client.
+ *
+ *  3. "client.metrics.subscription.client.match" is a comma separated list of client match patterns, in case if there
+ *     is no matching pattern specified then broker considers that as all match which means the associated metrics
+ *     applies to all the clients. Ex: "client_software_name = Java, client_software_version = 11.1.*"
+ *     For exact parameters that a client can pass please look at the ClientMatchingParams
+ *
+ *  4. "client.metrics.delete.subscription" should be set to true to delete an existing client subscription. if it is
+ *      set then there is no need for the other parameters
+ *
  * For more information please look at kip-714:
  * https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability
  */
 object ClientMetricsConfig {
 
-  class SubscriptionGroup(subscriptionGroup: String,
-                          subscribedMetrics: List[String],
-                          var matchingPatternsList: List[String],
-                          pushIntervalMs: Int,
-                          allMetricsSubscribed: Boolean = false) {
-    def getId = subscriptionGroup
+  class SubscriptionInfo(subscriptionId: String,
+                         subscribedMetrics: List[String],
+                         var matchingPatternsList: List[String],
+                         pushIntervalMs: Int,
+                         allMetricsSubscribed: Boolean = false) {
+    def getId = subscriptionId
     def getPushIntervalMs = pushIntervalMs
     val clientMatchingPatterns = CmClientInformation.parseMatchingPatterns(matchingPatternsList)
     def getClientMatchingPatterns = clientMatchingPatterns
     def getSubscribedMetrics = subscribedMetrics
     def getAllMetricsSubscribed = allMetricsSubscribed
+  }
+
+  object ClientMatchingParams {
+    val CLIENT_ID = "client_id"
+    val CLIENT_INSTANCE_ID = "client_instance_id"
+    val CLIENT_SOFTWARE_NAME = "client_software_name"
+    val CLIENT_SOFTWARE_VERSION = "client_software_version"
+    val CLIENT_SOURCE_ADDRESS = "client_source_address"
+    val CLIENT_SOURCE_PORT = "client_source_port"
+
+    val matchersList = List(CLIENT_ID, CLIENT_INSTANCE_ID, CLIENT_SOFTWARE_NAME,
+                            CLIENT_SOFTWARE_VERSION, CLIENT_SOURCE_ADDRESS, CLIENT_SOURCE_PORT)
+
+    def isValidParam(param: String) = matchersList.contains(param)
   }
 
   object ClientMetrics {
@@ -106,12 +150,12 @@ object ClientMetricsConfig {
     }
   }
 
-  private val subscriptionMap = new ConcurrentHashMap[String, SubscriptionGroup]
+  private val subscriptionMap = new ConcurrentHashMap[String, SubscriptionInfo]
 
-  def getClientSubscriptionGroup(groupId :String): SubscriptionGroup  =  subscriptionMap.get(groupId)
+  def getClientSubscriptionInfo(subscriptionId :String): SubscriptionInfo  =  subscriptionMap.get(subscriptionId)
   def clearClientSubscriptions() = subscriptionMap.clear
-  def getSubscriptionGroupCount = subscriptionMap.size
-  def getClientSubscriptionGroups = subscriptionMap.values
+  def getSubscriptionsCount = subscriptionMap.size
+  def getClientSubscriptions = subscriptionMap.values
 
   private def toList(prop: Any): List[String] = {
     val value: util.List[_] = prop.asInstanceOf[util.List[_]]
@@ -120,21 +164,22 @@ object ClientMetricsConfig {
     valueList.toList
   }
 
-  def updateClientSubscription(groupId :String, properties: Properties): Unit = {
+  def updateClientSubscription(subscriptionId :String, properties: Properties): Unit = {
     val parsed = configDef.parse(properties)
     val javaFalse = java.lang.Boolean.FALSE
     val subscriptionDeleted = parsed.getOrDefault(DeleteSubscription, javaFalse).asInstanceOf[Boolean]
     if (subscriptionDeleted) {
-      val deletedGroup = subscriptionMap.remove(groupId)
-      ClientMetricsCache.getInstance.invalidate(deletedGroup, null)
+      val deletedSubscription = subscriptionMap.remove(subscriptionId)
+      ClientMetricsCache.getInstance.invalidate(deletedSubscription, null)
     } else {
       val clientMatchPattern = toList(parsed.get(ClientMatchPattern))
       val pushInterval = parsed.get(PushIntervalMs).asInstanceOf[Int]
       val allMetricsSubscribed = parsed.getOrDefault(AllMetricsFlag, javaFalse).asInstanceOf[Boolean]
       val metrics = if (allMetricsSubscribed) List("") else toList(parsed.get(SubscriptionMetrics))
-      val newGroup = new SubscriptionGroup(groupId, metrics, clientMatchPattern, pushInterval, allMetricsSubscribed)
-      val oldGroup = subscriptionMap.put(groupId, newGroup)
-      ClientMetricsCache.getInstance.invalidate(oldGroup, newGroup)
+      val newSubscription =
+        new SubscriptionInfo(subscriptionId, metrics, clientMatchPattern, pushInterval, allMetricsSubscribed)
+      val oldSubscription = subscriptionMap.put(subscriptionId, newSubscription)
+      ClientMetricsCache.getInstance.invalidate(oldSubscription, newSubscription)
     }
   }
 

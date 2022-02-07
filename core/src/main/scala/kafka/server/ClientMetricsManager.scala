@@ -62,7 +62,7 @@ class ClientMetricsManager {
       info(s"Metrics collection is disabled for the client: ${clientInstance.getId.toString}")
     }
 
-    clientInstance.updateMetricsReceivedTs(Calendar.getInstance.getTime.getTime)
+    clientInstance.updateLastAccessTS(Calendar.getInstance.getTime.getTime)
 
     new GetTelemetrySubscriptionResponse(data)
   }
@@ -73,7 +73,7 @@ class ClientMetricsManager {
 
   def createClientInstance(clientInstanceId: Uuid, clientInfo: CmClientInformation): CmClientInstanceState = {
     val clientInstance = CmClientInstanceState(clientInstanceId, clientInfo,
-                                               ClientMetricsConfig.getClientSubscriptionGroups)
+                                               ClientMetricsConfig.getClientSubscriptions)
     // Add to the cache and if cache size > max entries then time to make some room by running
     // GC to clean up all the expired entries in the cache.
     ClientMetricsCache.getInstance.add(clientInstance)
