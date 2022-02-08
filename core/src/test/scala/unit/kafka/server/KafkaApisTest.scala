@@ -496,6 +496,45 @@ class KafkaApisTest {
     verify(authorizer, adminManager)
   }
 
+  private def getIncrementalCMAlterConfigRequestBuilder(configResources: Seq[ConfigResource]): IncrementalAlterConfigsRequest.Builder = {
+    val resourceMap = configResources.map(configResource => {
+      val entryToBeModified = new ConfigEntry("client.metrics.subscription.metrics", "foo.bar")
+      configResource -> Set(new AlterConfigOp(entryToBeModified, OpType.SET)).asJavaCollection
+    }).toMap.asJava
+    new IncrementalAlterConfigsRequest.Builder(resourceMap, false)
+  }
+  @Test
+  def testIncrementalClientMetricAlterConfigs(): Unit = {
+    val authorizer: Authorizer = EasyMock.niceMock(classOf[Authorizer])
+
+    val subscriptionName = "client_metric_subscription_1"
+    val authorizedResource = new ConfigResource(ConfigResource.Type.CLIENT_METRICS, subscriptionName)
+
+    authorizeResource(authorizer, AclOperation.ALTER_CONFIGS, ResourceType.CLIENT_METRICS,
+      subscriptionName, AuthorizationResult.ALLOWED)
+
+    val requestHeader = new RequestHeader(ApiKeys.INCREMENTAL_ALTER_CONFIGS,
+      ApiKeys.INCREMENTAL_ALTER_CONFIGS.latestVersion, clientId, 0)
+
+    val incrementalAlterConfigsRequest = getIncrementalCMAlterConfigRequestBuilder(Seq(authorizedResource)).build(requestHeader.apiVersion)
+    val request = buildRequest(incrementalAlterConfigsRequest,
+      fromPrivilegedListener = true, requestHeader = Option(requestHeader))
+
+    EasyMock.expect(controller.isActive).andReturn(true)
+
+    val capturedResponse = expectNoThrottling(request)
+
+    EasyMock.expect(adminManager.incrementalAlterConfigs(anyObject(), EasyMock.eq(false)))
+      .andReturn(Map(authorizedResource -> ApiError.NONE))
+
+    EasyMock.replay(replicaManager, clientRequestQuotaManager, requestChannel, authorizer,
+      adminManager, controller)
+    createKafkaApis(authorizer = Some(authorizer)).handleIncrementalAlterConfigsRequest(request)
+
+    verifyIncrementalAlterConfigResult(capturedResponse, Map(subscriptionName -> Errors.NONE ))
+    verify(authorizer, adminManager)
+  }
+
   @Test
   def testDescribeConfigsClientMetrics(): Unit = {
     val authorizer: Authorizer = EasyMock.niceMock(classOf[Authorizer])

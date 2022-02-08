@@ -548,6 +548,11 @@ class ZkAdminManager(val config: KafkaConfig,
             prepareIncrementalConfigs(alterConfigOps, configProps, LogConfig.configKeys)
             alterTopicConfigs(resource, validateOnly, configProps, configEntriesMap)
 
+          case ConfigResource.Type.CLIENT_METRICS =>
+            val configProps = adminZkClient.fetchEntityConfig(ConfigType.ClientMetrics, resource.name)
+            prepareIncrementalConfigs(alterConfigOps, configProps, LogConfig.configKeys)
+            alterClientMetricsSubscriptions(resource, validateOnly, configProps, configEntriesMap)
+
           case ConfigResource.Type.BROKER =>
             val brokerId = getBrokerId(resource)
             val perBrokerConfig = brokerId.nonEmpty
@@ -558,6 +563,7 @@ class ZkAdminManager(val config: KafkaConfig,
             val configProps = this.config.dynamicConfig.fromPersistentProps(persistentProps, perBrokerConfig)
             prepareIncrementalConfigs(alterConfigOps, configProps, KafkaConfig.configKeys)
             alterBrokerConfigs(resource, validateOnly, configProps, configEntriesMap)
+
 
           case ConfigResource.Type.BROKER_LOGGER =>
             getBrokerId(resource)
