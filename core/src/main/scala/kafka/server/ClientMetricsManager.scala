@@ -62,7 +62,7 @@ class ClientMetricsManager {
       info(s"Metrics collection is disabled for the client: ${clientInstance.getId.toString}")
     }
 
-    clientInstance.updateLastAccessTS(Calendar.getInstance.getTime.getTime)
+    clientInstance.updateLastAccessTs(Calendar.getInstance.getTime.getTime)
 
     new GetTelemetrySubscriptionResponse(data)
   }

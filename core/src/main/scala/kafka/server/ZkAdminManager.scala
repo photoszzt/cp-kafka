@@ -564,7 +564,6 @@ class ZkAdminManager(val config: KafkaConfig,
             prepareIncrementalConfigs(alterConfigOps, configProps, KafkaConfig.configKeys)
             alterBrokerConfigs(resource, validateOnly, configProps, configEntriesMap)
 
-
           case ConfigResource.Type.BROKER_LOGGER =>
             getBrokerId(resource)
             validateLogLevelConfigs(alterConfigOps)

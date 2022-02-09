@@ -21,10 +21,9 @@ import kafka.metrics.clientmetrics.ClientMetricsCache.{DEFAULT_TTL_MS, cmCache}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionInfo
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.cache.LRUCache
-import org.apache.log4j.helpers.LogLog.error
+import org.apache.log4j.helpers.LogLog.{debug, error}
 
 import java.util.Calendar
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -36,12 +35,12 @@ import scala.util.{Failure, Success}
  *
  *   Eviction Policy:
  *      1. Standard LRU eviction policy applies once cache size reaches its max size.
- *      2. In addition to the LRU eviction there is a GC for the elements that have stayed too long in the cache.
- *      There is a last accessed time stamp is set for every cached object which gets updated every time a cache
- *      object is accessed by GetTelemetrySubscriptionRequest or PushTelemetrySubscriptionRequest. During the GC,
- *      all the elements that are inactive beyond TTL time period would be cleaned up from the cache. GC operation
- *      is an asynchronous task triggered by ClientMetricManager in specific intervals governed by
- *      CM_CACHE_GC_INTERVAL.
+ *      2. In addition to the LRU eviction there is a GC for the elements that have stayed too long
+ *      in the cache. There is a last accessed time stamp is set for every cached object which gets
+ *      updated every time a cache object is accessed by GetTelemetrySubscriptionRequest or
+ *      PushTelemetrySubscriptionRequest. During the GC, all the elements that are inactive beyond
+ *      TTL time period would be cleaned up from the cache. GC operation is an asynchronous task
+ *      triggered by ClientMetricManager in specific intervals governed by CM_CACHE_GC_INTERVAL.
  *
  *   Invalidation of the Cached objects:
  *      Since ClientInstanceState objects are created by compiling qualified client metric subscriptions
@@ -51,8 +50,9 @@ import scala.util.{Failure, Success}
  *      instances and applies the subscription changes by replacing it with a new ClientInstanceState object.
  *
  *   Locking:
- *      All the cache modifiers (add/delete/replace) are synchronized through standard scala object level synchronized
- *      method. For better concurrency there is no explicit locking applied on read/get operations.
+ *      All the cache modifiers (add/delete/replace) are synchronized through standard scala object
+ *      level synchronized method. For better concurrency there is no explicit locking applied on
+ *      read/get operations.
  */
 object  ClientMetricsCache {
   val DEFAULT_TTL_MS = 60 * 1000  // One minute
@@ -77,7 +77,6 @@ object  ClientMetricsCache {
       }
     }
   }
-
 }
 
 class ClientMetricsCache(maxSize: Int) {
@@ -96,22 +95,27 @@ class ClientMetricsCache(maxSize: Int) {
    * @param newSubscriptionInfo -- subscription that has been added to the client metrics subscription
    */
   def invalidate(oldSubscriptionInfo: SubscriptionInfo, newSubscriptionInfo: SubscriptionInfo) = {
-    update(oldSubscriptionInfo, newSubscriptionInfo)
+    _cache.synchronized {
+      update(oldSubscriptionInfo, newSubscriptionInfo)
+    }
   }
+
+  def add(instance: CmClientInstanceState)= {
+    _cache.synchronized{
+      _cache.put(instance.getId, new ClientMetricsCacheValue(instance))
+    }
+  }
+
+  def cleanupExpiredEntries(reason: String): Future[Long] = Future {
+    _cache.synchronized{
+      val preCleanupSize = _cache.size()
+      cmCache.cleanupTtlEntries()
+      preCleanupSize - _cache.size()
+    }
+  }
+
 
   ///////// **** PRIVATE - METHODS **** /////////////
-  def add(instance: CmClientInstanceState)= {
-    _cache.synchronized(_cache.put(instance.getId, new ClientMetricsCacheValue(instance)))
-  }
-
-  private def remove(id: Uuid) : Unit = {
-    _cache.synchronized(_cache.remove(id))
-  }
-
-  private def updateValue(element: ClientMetricsCacheValue, instance: CmClientInstanceState)= {
-    _cache.synchronized(element.setClientInstance(instance))
-  }
-
   private def update(oldSubscription: SubscriptionInfo, newSubscription: SubscriptionInfo) = {
     _cache.entrySet().forEach(element =>  {
       val clientInstance = element.getValue.getClientInstance
@@ -122,41 +126,44 @@ class ClientMetricsCache(maxSize: Int) {
       if (newSubscription != null && clientInstance.getClientInfo.isMatched(newSubscription.getClientMatchingPatterns)){
         updatedMetricSubscriptions.add(newSubscription)
       }
-      val newClientInstance = CmClientInstanceState(clientInstance, updatedMetricSubscriptions)
-      updateValue(element.getValue, newClientInstance)
+      element.getValue.replace(CmClientInstanceState(clientInstance, updatedMetricSubscriptions))
     })
   }
 
   private def isExpired(element: CmClientInstanceState) = {
     val currentTs = Calendar.getInstance.getTime
-    val delta = currentTs.getTime - element.getLastAccessTS.getTime
+    val delta = currentTs.getTime - element.getLastAccessTs.getTime
     delta > Math.max(3 * element.getPushIntervalMs, DEFAULT_TTL_MS)
   }
 
-  private def cleanupExpiredEntries(reason: String): Future[Long] = Future {
-    val preCleanupSize = cmCache.getSize
-    cmCache.cleanupTtlEntries()
-    preCleanupSize - cmCache.getSize
-  }
-
   private def cleanupTtlEntries() = {
-    val expiredElements = new ListBuffer[Uuid] ()
-    _cache.entrySet().forEach(x => {
-      if (isExpired(x.getValue.clientInstance)) {
-        expiredElements.append(x.getValue.getClientInstance.getId)
+    val iter = _cache.entrySet().iterator()
+    while (iter.hasNext) {
+      val element = iter.next().getValue.clientInstance
+      if (isExpired(element)) {
+        debug(s"Client subscription entry ${element} is expired removing it from the cache")
+        iter.remove()
       }
-    })
-    expiredElements.foreach(x => {
-      info(s"Client subscription entry ${x} is expired removing it from the cache")
-      remove(x)
-    })
+    }
   }
 
-  // Wrapper class
+
+  /**
+   * Wrapper class to hold the CmClientInstance object and helps in preserving the LRU order.
+   *
+   * Background:
+   * Whenever client metrics subscription is added/updated that results in updating the
+   * affected client instance state objects to absorb the new changes, that's done by replacing
+   * the old client instance with the new instance object as explained in invalidate method.
+   * If we directly replace the cached object that would alter the LRU order, so having the wrapper
+   * will allow us to replace the client instance object in the wrapper itself without changing
+   * the LRU order.
+   * @param instance
+   */
   class ClientMetricsCacheValue(instance: CmClientInstanceState) {
     var clientInstance :CmClientInstanceState = instance
     def getClientInstance = clientInstance
-    def setClientInstance(instance: CmClientInstanceState): Unit = {
+    def replace(instance: CmClientInstanceState): Unit = {
       clientInstance = instance
     }
   }

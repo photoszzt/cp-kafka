@@ -112,17 +112,10 @@ object ClientMetricsConfig {
 
     def names = configDef.names
 
-    private def validateParameter(parameter: String, logPrefix: String): Unit = {
-      if (parameter.isEmpty) {
-        throw new InvalidRequestException(logPrefix + " is illegal, it can't be empty")
+    def validate(subscriptionId :String, properties :Properties): Unit = {
+      if (subscriptionId.isEmpty) {
+        throw new InvalidRequestException("subscriptionId can't be empty")
       }
-      if ("." == parameter || ".." == parameter) {
-        throw new InvalidRequestException(logPrefix + " cannot be \".\" or \"..\"")
-      }
-    }
-
-    def validate(name :String, properties :Properties): Unit = {
-      validateParameter(name, "Client metrics subscription name")
       validateProperties(properties)
     }
 
@@ -183,5 +176,7 @@ object ClientMetricsConfig {
     }
   }
 
-  def validateConfig(name :String, configs: Properties): Unit = ClientMetrics.validate(name, configs)
+  def validateConfig(subscriptionId :String, configs: Properties): Unit =  {
+    ClientMetrics.validate(subscriptionId, configs)
+  }
 }

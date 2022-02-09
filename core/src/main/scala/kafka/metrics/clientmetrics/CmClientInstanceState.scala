@@ -34,7 +34,7 @@ object CmClientInstanceState {
   def apply(instance: CmClientInstanceState,
             subscriptions: java.util.Collection[SubscriptionInfo]): CmClientInstanceState = {
     val newInstance = create(instance.getId, instance.getClientInfo, subscriptions)
-    newInstance.updateLastAccessTS(instance.getLastAccessTS.getTime)
+    newInstance.updateLastAccessTs(instance.getLastAccessTs.getTime)
     newInstance
   }
 
@@ -89,18 +89,18 @@ class CmClientInstanceState private (clientInstanceId: Uuid,
                                      pushIntervalMs: Int,
                                      allMetricsSubscribed: Boolean) {
 
-  private val lastAccessTS = Calendar.getInstance.getTime
+  private val lastAccessTs = Calendar.getInstance.getTime
   private val subscriptionId = computeSubscriptionId
 
   def getPushIntervalMs = pushIntervalMs
-  def getLastAccessTS = lastAccessTS
+  def getLastAccessTs = lastAccessTs
   def getSubscriptionId =  subscriptionId
   def getId = clientInstanceId
   def getClientInfo = clientInfo
   def getSubscriptions = subscriptions
   def getMetrics = metrics
   def getAllMetricsSubscribed = allMetricsSubscribed
-  def updateLastAccessTS(tsInMs: Long): Unit =  lastAccessTS.setTime(tsInMs)
+  def updateLastAccessTs(tsInMs: Long): Unit =  lastAccessTs.setTime(tsInMs)
 
   // Whenever push-interval for a client is set to 0 means metric collection for this specific client is disabled.
   def isDisabledForMetricsCollection :Boolean =  getPushIntervalMs == 0

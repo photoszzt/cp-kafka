@@ -39,7 +39,6 @@ public final class ConfigResource {
             Arrays.stream(values()).collect(Collectors.toMap(Type::id, Function.identity()))
         );
 
-
         private final byte id;
 
         Type(final byte id) {

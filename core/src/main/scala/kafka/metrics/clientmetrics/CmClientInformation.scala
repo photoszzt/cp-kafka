@@ -51,15 +51,14 @@ object CmClientInformation {
    *  Ex: "VERSION=1.2.3" would be converted to a map entry of (Version, 1.2.3)
    *
    *  NOTES:
-   *  1. Client match pattern splits the input into two parts separated by first occurance
-   *     of the character '='
+   *  1. Client match pattern splits the input into two parts separated by first
+   *     occurrence of the character '='
    *  2. '*' is considered as invalid client match pattern
    * @param patterns List of client matching pattern strings
    * @return
    */
   def parseMatchingPatterns(patterns: List[String]) : Map[String, String] = {
     val patternsMap = mutable.Map[String, String]()
-    patternsMap.clear()
     if (patterns != null) {
       patterns.foreach(x => {
         val nameValuePair = x.split("=", 2).map(x => x.trim)
