@@ -91,8 +91,8 @@ public class DefaultConsumerMetricRecorder extends AbstractClientMetricRecorder 
     }
 
     @Override
-    public void recordPollLast(int amount) {
-        gaugeSensor(pollLast).record(amount);
+    public void recordPollLast(long seconds) {
+        gaugeSensor(pollLast).record(seconds);
     }
 
     @Override
@@ -106,8 +106,9 @@ public class DefaultConsumerMetricRecorder extends AbstractClientMetricRecorder 
     }
 
     @Override
-    public void recordGroupAssignmentStrategy(int amount) {
-        stringSensor(groupAssignmentStrategy).record(amount);
+    public void recordGroupAssignmentStrategy(String strategy) {
+        // TODO: TELEMETRY_TODO: how to handle strings?
+        // stringSensor(groupAssignmentStrategy).record(strategy);
     }
 
     @Override
