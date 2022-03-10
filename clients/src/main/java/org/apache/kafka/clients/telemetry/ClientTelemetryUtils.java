@@ -25,14 +25,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.ApiVersions;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.telemetry.ClientInstanceMetricRecorder.ConnectionErrorReason;
 import org.apache.kafka.clients.telemetry.MetricSelector.FilteredMetricSelector;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.config.AbstractConfig;
@@ -47,7 +46,6 @@ import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.DefaultRecord;
 import org.apache.kafka.common.record.LegacyRecord;
 import org.apache.kafka.common.record.RecordBatch;
-import org.apache.kafka.common.requests.AbstractRequest;
 import org.apache.kafka.common.requests.GetTelemetrySubscriptionRequest;
 import org.apache.kafka.common.requests.PushTelemetryRequest;
 import org.apache.kafka.common.utils.ByteBufferOutputStream;
@@ -120,9 +118,10 @@ public class ClientTelemetryUtils {
 
     public static MetricSelector validateMetricNames(List<String> requestedMetrics) {
         if (requestedMetrics == null || requestedMetrics.isEmpty()) {
+            log.trace("Telemetry subscription has specified no metric names; telemetry will record no metrics");
             return MetricSelector.NONE;
         } else if (requestedMetrics.size() == 1 && requestedMetrics.get(0).isEmpty()) {
-            log.debug("Telemetry subscription has specified a single empty metric name; using all metrics");
+            log.trace("Telemetry subscription has specified a single empty metric name; using all metrics");
             return MetricSelector.ALL;
         } else {
             log.trace("Telemetry subscription has specified to include only metrics that are prefixed with the following strings: {}", requestedMetrics);
@@ -192,9 +191,10 @@ public class ClientTelemetryUtils {
 
     public static List<TelemetryMetric> currentTelemetryMetrics(Collection<KafkaMetric> metrics,
         DeltaValueStore deltaValueStore,
-        boolean deltaTemporality) {
+        boolean deltaTemporality,
+        MetricSelector metricSelector) {
         return metrics.stream().map(kafkaMetric -> {
-            String name = kafkaMetric.metricName().name();
+            MetricName metricName = kafkaMetric.metricName();
             Object metricValue = kafkaMetric.metricValue();
 
             // TODO: TELEMETRY_TODO: not sure if the metric value is always stored as a double,
@@ -210,10 +210,9 @@ public class ClientTelemetryUtils {
             }
 
             MetricType metricType = metricType(kafkaMetric);
-            String description = kafkaMetric.metricName().description();
 
-            return new TelemetryMetric(name, metricType, value, description);
-        }).collect(Collectors.toList());
+            return new TelemetryMetric(metricName, metricType, value);
+        }).filter(metricSelector).collect(Collectors.toList());
     }
 
     public static ByteBuffer serialize(Collection<TelemetryMetric> telemetryMetrics,
@@ -301,7 +300,7 @@ public class ClientTelemetryUtils {
         }
     }
 
-    public static void incrementQueueBytesTelemetry(ClientTelemetry clientTelemetry,
+    public static void incrementProducerQueueMetrics(ClientTelemetry clientTelemetry,
         ApiVersions apiVersions,
         short acks,
         TopicPartition tp,
@@ -316,14 +315,14 @@ public class ClientTelemetryUtils {
         ProducerMetricRecorder producerMetricRecorder = clientTelemetry.producerMetricRecorder();
         ProducerTopicMetricRecorder producerTopicMetricRecorder = clientTelemetry.producerTopicMetricRecorder();
 
-        producerMetricRecorder.recordQueueBytes(size);
-        producerMetricRecorder.recordQueueMessages(1);
+        producerMetricRecorder.recordRecordQueueBytes(size);
+        producerMetricRecorder.recordRecordQueueCount(1);
 
-        producerTopicMetricRecorder.queueBytes(tp, acks, size);
-        producerTopicMetricRecorder.queueCount(tp, acks, 1);
+        producerTopicMetricRecorder.recordRecordQueueBytes(tp, acks, size);
+        producerTopicMetricRecorder.recordRecordQueueCount(tp, acks, 1);
     }
 
-    public static void decrementQueueBytesTelemetry(ClientTelemetry clientTelemetry,
+    public static void decrementProducerQueueMetrics(ClientTelemetry clientTelemetry,
         short acks,
         TopicPartition tp,
         int size) {
@@ -336,10 +335,10 @@ public class ClientTelemetryUtils {
         ProducerMetricRecorder producerMetricRecorder = clientTelemetry.producerMetricRecorder();
         ProducerTopicMetricRecorder producerTopicMetricRecorder = clientTelemetry.producerTopicMetricRecorder();
 
-        producerMetricRecorder.recordQueueBytes(-size);
-        producerMetricRecorder.recordQueueMessages(-recordCount);
-        producerTopicMetricRecorder.queueBytes(tp, acks, -size);
-        producerTopicMetricRecorder.queueCount(tp, acks, -recordCount);
+        producerMetricRecorder.recordRecordQueueBytes(-size);
+        producerMetricRecorder.recordRecordQueueCount(-recordCount);
+        producerTopicMetricRecorder.recordRecordQueueBytes(tp, acks, -size);
+        producerTopicMetricRecorder.recordRecordQueueCount(tp, acks, -recordCount);
     }
 
     public static String formatAcks(short acks) {
@@ -356,55 +355,25 @@ public class ClientTelemetryUtils {
         }
     }
 
-    public static Optional<AbstractRequest.Builder<?>> createRequest(TelemetryState state,
+    public static GetTelemetrySubscriptionRequest.Builder createGetTelemetrySubscriptionRequest(TelemetrySubscription subscription) {
+        Uuid clientInstanceId = subscription != null ? subscription.clientInstanceId() : ZERO_UUID;
+        return new GetTelemetrySubscriptionRequest.Builder(clientInstanceId);
+    }
+
+    public static PushTelemetryRequest.Builder createPushTelemetryRequest(boolean terminating,
         TelemetrySubscription subscription,
         TelemetrySerializer telemetrySerializer,
-        Collection<KafkaMetric> metrics,
-        DeltaValueStore deltaValueStore,
-        Consumer<TelemetryState> stateConsumer) {
-        final TelemetryState newState;
-        final AbstractRequest.Builder<?> requestBuilder;
+        Collection<TelemetryMetric> telemetryMetrics) {
+        CompressionType compressionType = preferredCompressionType(subscription.acceptedCompressionTypes());
 
-        if (state == TelemetryState.subscription_needed) {
-            Uuid clientInstanceId = subscription != null ? subscription.clientInstanceId() : ZERO_UUID;
-            requestBuilder = new GetTelemetrySubscriptionRequest.Builder(clientInstanceId);
-            newState = TelemetryState.subscription_in_progress;
-        } else if (state == TelemetryState.push_needed || state == TelemetryState.terminating_push_needed) {
-            if (subscription == null) {
-                log.warn("Telemetry state is {} but subscription is null; not sending telemetry", state);
-                return Optional.empty();
-            }
+        ByteBuffer buf = serialize(telemetryMetrics, compressionType, telemetrySerializer);
+        Bytes metricsData =  Bytes.wrap(Utils.readBytes(buf));
 
-            boolean terminating = state == TelemetryState.terminating_push_needed;
-            CompressionType compressionType = preferredCompressionType(subscription.acceptedCompressionTypes());
-            Collection<TelemetryMetric> telemetryMetrics = currentTelemetryMetrics(metrics,
-                deltaValueStore,
-                subscription.deltaTemporality());
-
-            // Filter down to only the ones the admin is requesting.
-            telemetryMetrics = subscription.metricSelector().filter(telemetryMetrics);
-
-            ByteBuffer buf = serialize(telemetryMetrics, compressionType, telemetrySerializer);
-            Bytes metricsData =  Bytes.wrap(Utils.readBytes(buf));
-
-            requestBuilder = new PushTelemetryRequest.Builder(subscription.clientInstanceId(),
-                subscription.subscriptionId(),
-                terminating,
-                compressionType,
-                metricsData);
-
-            if (terminating)
-                newState = TelemetryState.terminating_push_in_progress;
-            else
-                newState = TelemetryState.push_in_progress;
-
-        } else {
-            throw new IllegalTelemetryStateException(String.format("Cannot make telemetry request as telemetry is in state: %s", state));
-        }
-
-        log.debug("Created new {} and preparing to set state to {}", requestBuilder.getClass().getName(), newState);
-        stateConsumer.accept(newState);
-        return Optional.of(requestBuilder);
+        return new PushTelemetryRequest.Builder(subscription.clientInstanceId(),
+            subscription.subscriptionId(),
+            terminating,
+            compressionType,
+            metricsData);
     }
 
 }

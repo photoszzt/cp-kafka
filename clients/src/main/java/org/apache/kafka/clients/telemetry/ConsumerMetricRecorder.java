@@ -88,13 +88,13 @@ public interface ConsumerMetricRecorder extends ClientMetricRecorder {
 
     void recordPollInterval(int amount);
 
-    void recordPollLast(int amount);
+    void recordPollLast(long seconds);
 
     void recordPollLatency(int amount);
 
     void recordCommitCount(int amount);
 
-    void recordGroupAssignmentStrategy(int amount);
+    void recordGroupAssignmentStrategy(String strategy);
 
     void recordGroupAssignmentPartitionCount(int amount);
 
