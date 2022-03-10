@@ -28,7 +28,8 @@ import org.apache.kafka.common.MetricNameTemplate;
 import org.apache.kafka.common.metrics.MeasurableStat;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
-import org.apache.kafka.common.metrics.stats.*;
+import org.apache.kafka.common.metrics.stats.CumulativeSum;
+import org.apache.kafka.common.metrics.stats.LinearHistogram;
 
 /**
  * This class provides basic utility methods that client telemetry subclasses can leverage
