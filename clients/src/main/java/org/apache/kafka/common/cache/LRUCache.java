@@ -23,6 +23,7 @@ import java.util.Set;
 /**
  * A cache implementing a least recently used policy.
  */
+@SuppressWarnings("checkstyle:Indentation")
 public class LRUCache<K, V> implements Cache<K, V> {
     private final LinkedHashMap<K, V> cache;
 
@@ -55,7 +56,7 @@ public class LRUCache<K, V> implements Cache<K, V> {
         return cache.size();
     }
 
-    public Set<Map.Entry<K,V>> entrySet() {
+    public Set<Map.Entry<K, V>> entrySet() {
         return cache.entrySet();
     }
 
