@@ -49,7 +49,7 @@ import scala.collection.mutable.ListBuffer
  *      Ex: "org.apache.kafka/client.producer.partition.queue.,org.apache.kafka/client.producer.partition.latency"
  *      OR "client.metrics.flag" must be set to 'true'
  *
- *  2. "client.metrics.push.interval.ms" should be set to a positive integer >= 0, value 0 is considered as an indication
+ *  2. "client.metrics.push.interval.ms" should be greater than or equal to 0; a value 0 is considered as an indication
  *  to disable the metric collection from the client.
  *
  *  3. "client.metrics.subscription.client.match" is a comma separated list of client match patterns, in case if there

@@ -36,7 +36,7 @@ import scala.util.{Failure, Success}
  *   Eviction Policy:
  *      1. Standard LRU eviction policy applies once cache size reaches its max size.
  *      2. In addition to the LRU eviction there is a GC for the elements that have stayed too long
- *      in the cache. There is a last accessed time stamp is set for every cached object which gets
+ *      in the cache. There is a last accessed timestamp is set for every cached object which gets
  *      updated every time a cache object is accessed by GetTelemetrySubscriptionRequest or
  *      PushTelemetrySubscriptionRequest. During the GC, all the elements that are inactive beyond
  *      TTL time period would be cleaned up from the cache. GC operation is an asynchronous task
@@ -56,8 +56,8 @@ import scala.util.{Failure, Success}
  */
 object  ClientMetricsCache {
   val DEFAULT_TTL_MS = 60 * 1000  // One minute
-  val CM_CACHE_GC_INTERVAL = 5 * 60 * 1000 // 5 minutes
-  val CM_CACHE_MAX_SIZE = 8192 // What would be the right cache size?
+  val CM_CACHE_GC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+  val CM_CACHE_MAX_SIZE = 16384 // Max cache size (16k active client connections per broker)
   val gcTs = Calendar.getInstance.getTime
   private val cmCache = new ClientMetricsCache(CM_CACHE_MAX_SIZE)
 
@@ -69,7 +69,7 @@ object  ClientMetricsCache {
   def runGCIfNeeded(forceGC: Boolean = false): Unit = {
     gcTs.synchronized {
       val timeElapsed = Calendar.getInstance.getTime.getTime - gcTs.getTime
-      if (forceGC || cmCache.getSize > CM_CACHE_MAX_SIZE && timeElapsed > CM_CACHE_GC_INTERVAL) {
+      if (forceGC || cmCache.getSize > CM_CACHE_MAX_SIZE && timeElapsed > CM_CACHE_GC_INTERVAL_MS) {
         cmCache.cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
           case Failure(e) => error(s"Client Metrics subscription cache cleanup failed: ${e.getMessage}")
