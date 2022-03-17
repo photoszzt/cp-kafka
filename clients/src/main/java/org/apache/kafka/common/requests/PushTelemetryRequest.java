@@ -25,8 +25,12 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.CompressionType;
+import org.apache.kafka.common.record.RecordBatch;
+import org.apache.kafka.common.utils.BufferSupplier;
 import org.apache.kafka.common.utils.Bytes;
+import org.apache.kafka.common.utils.Utils;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 public class PushTelemetryRequest extends AbstractRequest {
@@ -68,8 +72,15 @@ public class PushTelemetryRequest extends AbstractRequest {
 
     @Override
     public PushTelemetryResponse getErrorResponse(int throttleTimeMs, Throwable e) {
-        PushTelemetryResponseData responseData = new PushTelemetryResponseData().
-                setErrorCode(Errors.forException(e).code());
+        PushTelemetryResponseData responseData = new PushTelemetryResponseData()
+                .setErrorCode(Errors.forException(e).code());
+        responseData.setThrottleTimeMs(throttleTimeMs);
+        return new PushTelemetryResponse(responseData);
+    }
+
+    public PushTelemetryResponse createResponse(int throttleTimeMs, Errors errors) {
+        PushTelemetryResponseData responseData = new PushTelemetryResponseData();
+        responseData.setErrorCode(errors.code());
         responseData.setThrottleTimeMs(throttleTimeMs);
         return new PushTelemetryResponse(responseData);
     }
@@ -81,6 +92,35 @@ public class PushTelemetryRequest extends AbstractRequest {
 
     public Uuid getClientInstanceId() {
         return this.data.clientInstanceId();
+    }
+
+    public int getSubscriptionId() {
+        return this.data.subscriptionId();
+    }
+
+    public CompressionType getCompressionType() {
+        return CompressionType.forId(this.data.compressionType());
+    }
+
+    public boolean isClientTerminating() {
+        return this.data.terminating();
+    }
+
+    public String getMetricsContentType() {
+        // Future versions of PushTelemetryRequest and GetTelemetrySubscriptionsRequest may include a content-type
+        // field to allow for updated OTLP format versions (or additional formats), but this field is currently not
+        // included since only one format is specified in the current proposal of the kip-714
+        return null;
+    }
+
+    public ByteBuffer getMetricsData() throws Exception {
+        CompressionType compressionType = getCompressionType();
+        ByteBuffer data = ByteBuffer.wrap(this.data.metrics());
+        ByteBuffer decompressedData = ByteBuffer.allocate(10000);
+        try (InputStream in = compressionType.wrapForInput(data, RecordBatch.CURRENT_MAGIC_VALUE, BufferSupplier.create())) {
+            Utils.readFully(in, decompressedData);
+        }
+        return decompressedData;
     }
 
     public static PushTelemetryRequest parse(ByteBuffer buffer, short version) {

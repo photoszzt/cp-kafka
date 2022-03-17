@@ -248,10 +248,10 @@ class ClientMetricsCacheTest {
     assertTrue(cache.getSize == 3)
 
     // Modify client3's timestamp to meet the TTL expiry limit.
-    val ts = client3.getLastAccessTs.getTime -
+    val ts = client3.getLastAccessTs -
                     (Math.max(3 * client3.getPushIntervalMs, DEFAULT_TTL_MS) + 10)
     client3.updateLastAccessTs(ts)
-    ClientMetricsCache.gcTs.setTime(ClientMetricsCache.gcTs.getTime - (ClientMetricsCache.CM_CACHE_GC_INTERVAL_MS + 10))
+    ClientMetricsCache.gcTs = ClientMetricsCache.gcTs - (ClientMetricsCache.CM_CACHE_GC_INTERVAL_MS + 10)
 
     // Run the GC and wait until client3 entry is removed from the cache
     ClientMetricsCache.runGCIfNeeded(true)

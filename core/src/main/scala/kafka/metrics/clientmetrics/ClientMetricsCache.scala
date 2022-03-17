@@ -19,11 +19,11 @@ package kafka.metrics.clientmetrics
 import kafka.Kafka.info
 import kafka.metrics.clientmetrics.ClientMetricsCache.{DEFAULT_TTL_MS, cmCache}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.SubscriptionInfo
+import kafka.server.ClientMetricsManager.getCurrentTime
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.cache.LRUCache
 import org.apache.log4j.helpers.LogLog.{debug, error}
 
-import java.util.Calendar
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -58,7 +58,7 @@ object  ClientMetricsCache {
   val DEFAULT_TTL_MS = 60 * 1000  // One minute
   val CM_CACHE_GC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
   val CM_CACHE_MAX_SIZE = 16384 // Max cache size (16k active client connections per broker)
-  val gcTs = Calendar.getInstance.getTime
+  var gcTs = getCurrentTime
   private val cmCache = new ClientMetricsCache(CM_CACHE_MAX_SIZE)
 
   def getInstance = cmCache
@@ -67,9 +67,10 @@ object  ClientMetricsCache {
    * Launches the asynchronous task to clean the client metric subscriptions that are expired in the cache.
    */
   def runGCIfNeeded(forceGC: Boolean = false): Unit = {
-    gcTs.synchronized {
-      val timeElapsed = Calendar.getInstance.getTime.getTime - gcTs.getTime
+    synchronized {
+      val timeElapsed = getCurrentTime - gcTs
       if (forceGC || cmCache.getSize > CM_CACHE_MAX_SIZE && timeElapsed > CM_CACHE_GC_INTERVAL_MS) {
+        gcTs = getCurrentTime
         cmCache.cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
           case Failure(e) => error(s"Client Metrics subscription cache cleanup failed: ${e.getMessage}")
@@ -131,8 +132,7 @@ class ClientMetricsCache(maxSize: Int) {
   }
 
   private def isExpired(element: CmClientInstanceState) = {
-    val currentTs = Calendar.getInstance.getTime
-    val delta = currentTs.getTime - element.getLastAccessTs.getTime
+    val delta = getCurrentTime - element.getLastAccessTs
     delta > Math.max(3 * element.getPushIntervalMs, DEFAULT_TTL_MS)
   }
 
