@@ -29,7 +29,10 @@ object ClientMetricsReceiverPlugin {
   }
 
   def createPayload(request: PushTelemetryRequest): ClientTelemetryPayload = {
-    new ClientMetricsPayload(request.getClientInstanceId, request.isClientTerminating, request.getMetricsContentType, request.getMetricsData)
+    new ClientMetricsPayload(request.getClientInstanceId,
+                             request.isClientTerminating,
+                             request.getMetricsContentType,
+                             request.getMetricsData)
   }
 
 }

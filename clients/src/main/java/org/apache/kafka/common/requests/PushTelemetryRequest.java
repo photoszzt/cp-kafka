@@ -98,10 +98,6 @@ public class PushTelemetryRequest extends AbstractRequest {
         return this.data.subscriptionId();
     }
 
-    public CompressionType getCompressionType() {
-        return CompressionType.forId(this.data.compressionType());
-    }
-
     public boolean isClientTerminating() {
         return this.data.terminating();
     }
@@ -114,8 +110,11 @@ public class PushTelemetryRequest extends AbstractRequest {
     }
 
     public ByteBuffer getMetricsData() throws Exception {
-        CompressionType compressionType = getCompressionType();
-        ByteBuffer data = ByteBuffer.wrap(this.data.metrics());
+        return decompressMetricsData(CompressionType.forId(this.data.compressionType()), this.data.metrics());
+    }
+
+    public static ByteBuffer decompressMetricsData(CompressionType compressionType, byte[] metrics) throws Exception {
+        ByteBuffer data = ByteBuffer.wrap(metrics);
         ByteBuffer decompressedData = ByteBuffer.allocate(10000);
         try (InputStream in = compressionType.wrapForInput(data, RecordBatch.CURRENT_MAGIC_VALUE, BufferSupplier.create())) {
             Utils.readFully(in, decompressedData);

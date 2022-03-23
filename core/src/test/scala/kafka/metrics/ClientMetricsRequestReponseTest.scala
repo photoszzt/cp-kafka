@@ -16,17 +16,21 @@
  */
 package kafka.metrics
 
-import kafka.metrics.ClientMetricsTestUtils.{createCMSubscription, getCM}
+import kafka.metrics.ClientMetricsTestUtils.{createCMSubscription, getCM, getSerializedMetricsData, setupClientMetricsPlugin}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics
 import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation}
 import kafka.server.ClientMetricsManager
 import org.apache.kafka.common.Uuid
+import org.apache.kafka.common.message.PushTelemetryRequestData
+import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.CompressionType
-import org.apache.kafka.common.requests.{GetTelemetrySubscriptionRequest, GetTelemetrySubscriptionResponse}
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.apache.kafka.common.requests.{GetTelemetrySubscriptionRequest, GetTelemetrySubscriptionResponse, PushTelemetryRequest, PushTelemetryResponse}
+import org.apache.kafka.common.utils.Utils
+import org.junit.jupiter.api.Assertions.{assertNotNull, assertTrue}
 import org.junit.jupiter.api.{AfterEach, Test}
 
+import java.nio.ByteBuffer
 import java.util.Properties
 
 class ClientMetricsRequestResponseTest {
@@ -41,6 +45,14 @@ class ClientMetricsRequestResponseTest {
                                          id: Uuid = Uuid.ZERO_UUID): GetTelemetrySubscriptionResponse = {
     val request = new GetTelemetrySubscriptionRequest.Builder(id).build(0);
     getCM.processGetSubscriptionRequest(request, clientInfo, 20)
+  }
+
+  private def sendPushTelemetryRequest(data: PushTelemetryRequestData, clientInfo: CmClientInformation, delay: Int = 0): PushTelemetryResponse = {
+    val request = new PushTelemetryRequest(data, 0)
+    if (delay > 0) {
+      Thread.sleep(delay + 1)
+    }
+    getCM.processPushTelemetryRequest(request, null, clientInfo, 5000)
   }
 
   @Test def testGetClientMetricsRequestAndResponse(): Unit = {
@@ -164,4 +176,130 @@ class ClientMetricsRequestResponseTest {
     assertTrue(oldSubscriptionId != response.subscriptionId())
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
   }
+
+  @Test
+  def testPushMetricsRequestParameters(): Unit = {
+    val props = new Properties()
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, (60 * 1000).toString)
+    val subscription = createCMSubscription("cm_1", props)
+    assertTrue(subscription != null)
+
+    val clientInfo = CmClientInformation("testClient1", "clientId1", "Java", "11.1.0", "192.168.1.7", "9093")
+    val response = sendGetSubscriptionRequest(clientInfo).data()
+    assertTrue(response != null)
+    val data = new PushTelemetryRequestData()
+
+    // Test-1: send the request with no clientInstanceId.
+    var pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertNotNull(pushResponse)
+    assertTrue(pushResponse.error().code() == Errors.INVALID_REQUEST.code())
+
+    // Test-2: send the request with incorrect subscription Id
+    data.setClientInstanceId(response.clientInstanceId())
+    data.setSubscriptionId(response.subscriptionId() ^ 0x1234)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertNotNull(pushResponse)
+    assertTrue(pushResponse.error().code() == Errors.UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID.code())
+
+    // Test-3: send the request with incorrect compression type
+    data.setClientInstanceId(response.clientInstanceId())
+    data.setSubscriptionId(response.subscriptionId())
+    data.setCompressionType(0x30)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertNotNull(pushResponse)
+    assertTrue(pushResponse.error().code() == Errors.UNSUPPORTED_COMPRESSION_TYPE.code())
+
+    // Test-4: send the request with expired throttle time.
+    data.setClientInstanceId(response.clientInstanceId())
+    data.setSubscriptionId(response.subscriptionId())
+    data.setCompressionType(CompressionType.NONE.id.toByte)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertNotNull(pushResponse)
+    assertTrue(pushResponse.error().code() == Errors.THROTTLING_QUOTA_EXCEEDED.code())
+
+    // Test-5: Update the throttle time to 100ms and send the request
+    // since we have updated the subscription information, it would also change the SubscriptionId,
+    // first try to send the request without updating the new subscription id and it should fail.
+    // send the second request with new subscription id and then id should pass.
+    val pushInterval = 10
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
+    createCMSubscription("cm_1", props)
+    val response2 = sendGetSubscriptionRequest(clientInfo).data()
+
+    data.setClientInstanceId(response2.clientInstanceId())
+    data.setCompressionType(CompressionType.NONE.id.toByte)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertTrue(pushResponse.error().code() == Errors.UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID.code())
+
+    // Update the subscription id, also wait enough to pass the throttling interval
+    data.setSubscriptionId(response2.subscriptionId())
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+    assertTrue(pushResponse.error().code() == Errors.NONE.code())
+    assertTrue(pushResponse.data().throttleTimeMs() == 5000)
+  }
+
+  @Test
+  def testExportMetrics(): Unit = {
+    val plugin = setupClientMetricsPlugin()
+    val props = new Properties()
+    val pushInterval = 10
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
+    val subscription = createCMSubscription("cm_2", props)
+    assertTrue(subscription != null)
+
+    val clientInfo = CmClientInformation("testClient1", "clientId1", "Java", "11.1.0", "192.168.1.7", "9093")
+    val response = sendGetSubscriptionRequest(clientInfo).data()
+    assertTrue(response != null)
+    val data = new PushTelemetryRequestData()
+    data.setClientInstanceId(response.clientInstanceId())
+    data.setSubscriptionId(response.subscriptionId())
+    data.setCompressionType(CompressionType.NONE.id.toByte)
+
+    // Test-1: Send the push metrics request with empty metrics data, in response to that broker
+    // should not have invoked the metrics plugin's exportMetrics method.
+    var pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+    assertTrue(pushResponse.error().code() == Errors.NONE.code())
+    assertTrue(plugin.exportMetricsInvoked == 0)
+
+    // Test-2: Add the metrics data and send the request again, this time exportMetrics
+    // call out should have been invoked.
+    val metricsData = "org.apache.kafka/client.producer.partition.queue.size=1234"
+    data.setMetrics(metricsData.getBytes)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+    assertTrue(pushResponse.error().code() == Errors.NONE.code())
+    assertTrue(plugin.exportMetricsInvoked == 1)
+  }
+
+  @Test
+  def testPushMetricsWithCompressionTypes(): Unit = {
+    val plugin = setupClientMetricsPlugin()
+    val props = new Properties()
+    val pushInterval = 5
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
+    val subscription = createCMSubscription("cm_5", props)
+    assertTrue(subscription != null)
+
+    val clientInfo = CmClientInformation("testClient1", "clientId1", "Java", "11.1.0", "192.168.1.7", "9093")
+    val response = sendGetSubscriptionRequest(clientInfo).data()
+    assertTrue(response != null)
+
+    val data = new PushTelemetryRequestData()
+    val metricsMap = Map("metric1" -> 1, "metric2" -> 2)
+    data.setClientInstanceId(response.clientInstanceId())
+    data.setSubscriptionId(response.subscriptionId())
+    var count = 1
+    CompressionType.values().foreach(x => {
+      data.setCompressionType(x.id.toByte)
+      val (compressedData, metricStr) = getSerializedMetricsData(x, metricsMap)
+      data.setMetrics(compressedData.array())
+      val pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+      assertTrue(pushResponse.error().code() == Errors.NONE.code())
+      assertTrue(plugin.exportMetricsInvoked == count)
+      val s1 = new String(Utils.readBytes(plugin.metricsData.flip.asInstanceOf[ByteBuffer])).trim
+      System.out.println(s1 + "==" + metricStr)
+      assertTrue(s1.equals(metricStr))
+      count += 1
+    })
+  }
+
 }

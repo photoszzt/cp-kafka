@@ -107,6 +107,12 @@ class ClientMetricsCache(maxSize: Int) {
     }
   }
 
+  def remove(id: Uuid)= {
+    _cache.synchronized{
+      _cache.remove(id)
+    }
+  }
+
   def cleanupExpiredEntries(reason: String): Future[Long] = Future {
     _cache.synchronized{
       val preCleanupSize = _cache.size()
