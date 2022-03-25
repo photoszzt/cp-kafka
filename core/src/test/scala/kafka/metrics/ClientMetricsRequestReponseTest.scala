@@ -287,7 +287,8 @@ class ClientMetricsRequestResponseTest {
     data.setClientInstanceId(response.clientInstanceId())
     data.setSubscriptionId(response.subscriptionId())
     var count = 1
-    CompressionType.values().foreach(x => {
+    val values = List(CompressionType.GZIP, CompressionType.LZ4)
+    values.foreach(x => {
       data.setCompressionType(x.id.toByte)
       val (compressedData, metricStr) = getSerializedMetricsData(x, metricsMap)
       data.setMetrics(compressedData.array())

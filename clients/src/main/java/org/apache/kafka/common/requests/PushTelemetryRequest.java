@@ -121,7 +121,7 @@ public class PushTelemetryRequest extends AbstractRequest {
         try (InputStream in = compressionType.wrapForInput(data, RecordBatch.CURRENT_MAGIC_VALUE, BufferSupplier.create())) {
             Utils.readFully(in, decompressedData);
         }
-        return (ByteBuffer) decompressedData.flip();
+        return decompressedData;
     }
 
     public static PushTelemetryRequest parse(ByteBuffer buffer, short version) {

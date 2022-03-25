@@ -90,7 +90,7 @@ object ClientMetricsTestUtils {
   }
 
   def getSerializedMetricsData(compressionType: CompressionType, metrics: Map[String, Int]): (ByteBuffer, String) = {
-    def newMetricName(name: String) = new MetricName(name, "g_" + name, "desc_ " + name, Collections.emptyMap())
+    def newMetricName(name: String) = new MetricName(name, "g_" + name, "desc_" + name, Collections.emptyMap())
     def newTelemetryMetric(metricName: MetricName,  value: Long) = new TelemetryMetric(metricName, MetricType.sum, value)
     val telemetryMetrics = new util.ArrayList[TelemetryMetric]
     var metricsStr = new String()
