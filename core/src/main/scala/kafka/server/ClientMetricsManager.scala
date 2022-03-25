@@ -17,11 +17,12 @@
 
 package kafka.server
 
-import kafka.Kafka.info
+import kafka.Kafka.{info, warn}
+import kafka.common.KafkaException
 import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, ClientMetricsReceiverPlugin, CmClientInformation, CmClientInstanceState}
 import kafka.network.RequestChannel
 import kafka.server.ClientMetricsManager.{getCurrentTime, getSupportedCompressionTypes}
-import org.apache.kafka.common.errors.{ClientMetricsException, ClientMetricsReceiverPluginNotFoundException}
+import org.apache.kafka.common.errors.ClientMetricsReceiverPluginNotFoundException
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.annotation.InterfaceStability.Evolving
 import org.apache.kafka.common.message.GetTelemetrySubscriptionsResponseData
@@ -56,12 +57,14 @@ object ClientMetricsManager {
 
   def processGetTelemetrySubscriptionRequest(request: RequestChannel.Request,
                                              throttleMs: Int): GetTelemetrySubscriptionResponse = {
+    checkCmReceiverPluginConfigured()
     val subscriptionRequest = request.body[GetTelemetrySubscriptionRequest]
     val clientInfo = CmClientInformation(request, subscriptionRequest.getClientInstanceId.toString)
     _instance.processGetSubscriptionRequest(subscriptionRequest, clientInfo, throttleMs)
   }
 
   def processPushTelemetryRequest(request: RequestChannel.Request, throttleMs: Int): PushTelemetryResponse = {
+    checkCmReceiverPluginConfigured()
     val pushTelemetryRequest = request.body[PushTelemetryRequest]
     val clientInfo = CmClientInformation(request, pushTelemetryRequest.getClientInstanceId.toString)
     _instance.processPushTelemetryRequest(pushTelemetryRequest, request.context, clientInfo, throttleMs)
@@ -69,6 +72,10 @@ object ClientMetricsManager {
 }
 
 class ClientMetricsManager {
+
+  class ClientMetricsException(val s: String, var errorCode: Errors) extends KafkaException(s) {
+    def getErrorCode: Errors = this.errorCode
+  }
 
   def getClientInstance(id: Uuid) =  {
     if (id != null && id != Uuid.ZERO_UUID)
@@ -183,6 +190,7 @@ class ClientMetricsManager {
       }
     } catch {
       case e: ClientMetricsException => {
+        warn("PushTelemetry request raised an exception: " + e.getMessage)
         errorCode = e.getErrorCode
       }
     }

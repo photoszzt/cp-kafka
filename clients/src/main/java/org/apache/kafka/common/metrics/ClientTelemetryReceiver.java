@@ -18,7 +18,6 @@
 package org.apache.kafka.common.metrics;
 
 import org.apache.kafka.common.annotation.InterfaceStability;
-import org.apache.kafka.server.authorizer.AuthorizableRequestContext;
 
 @InterfaceStability.Evolving
 public interface ClientTelemetryReceiver {
@@ -31,5 +30,5 @@ public interface ClientTelemetryReceiver {
      * @param context the client request context for the corresponding PushTelemetryRequest api call
      * @param payload the encoded telemetry payload as sent by the client
      */
-    void exportMetrics(AuthorizableRequestContext context, ClientTelemetryPayload payload);
+    void exportMetrics(org.apache.kafka.server.authorizer.AuthorizableRequestContext context, ClientTelemetryPayload payload);
 }
