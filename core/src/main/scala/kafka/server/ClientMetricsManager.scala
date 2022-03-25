@@ -23,6 +23,7 @@ import kafka.network.RequestChannel
 import kafka.server.ClientMetricsManager.{getCurrentTime, getSupportedCompressionTypes}
 import org.apache.kafka.common.errors.{ClientMetricsException, ClientMetricsReceiverPluginNotFoundException}
 import org.apache.kafka.common.Uuid
+import org.apache.kafka.common.annotation.InterfaceStability.Evolving
 import org.apache.kafka.common.message.GetTelemetrySubscriptionsResponseData
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.CompressionType
@@ -39,10 +40,14 @@ object ClientMetricsManager {
 
   def getSupportedCompressionTypes: List[java.lang.Byte] = {
     val compressionTypes = new ListBuffer[java.lang.Byte]
-    CompressionType.values.foreach(x => compressionTypes.append(x.id.toByte))
+    CompressionType.values.filter(x => x != CompressionType.NONE).foreach(x => compressionTypes.append(x.id.toByte))
     compressionTypes.toList
   }
 
+  // TODO: Needs to integrate with external plugin changes..
+  // if plugin is not configured, getMetricsSubscriptions and pushMetricSubscription needs to return errors
+  // to the client.
+  @Evolving
   def checkCmReceiverPluginConfigured()  = {
     if (ClientMetricsReceiverPlugin.getCmReceiver() == null) {
       throw new ClientMetricsReceiverPluginNotFoundException("Broker does not have any configured client metrics receiver plugin")
@@ -153,11 +158,15 @@ class ClientMetricsManager {
     def createResponse(errors: Errors) : PushTelemetryResponse = {
       var adjustedThrottleMs = throttleMs
       val clientInstance = getClientInstance(pushTelemetryRequest.getClientInstanceId)
+
+      // Before sending the response make sure to update the book keeping markers like
+      // lastAccessTime, isTerminating flag etc..
       if (clientInstance != null) {
-        adjustedThrottleMs = Math.max(clientInstance.getThrottleTimeMs(), throttleMs)
+        adjustedThrottleMs = Math.max(clientInstance.getAdjustedPushInterval(), throttleMs)
         clientInstance.updateLastAccessTs(getCurrentTime)
         clientInstance.setTerminatingFlag(pushTelemetryRequest.isClientTerminating)
       }
+
       pushTelemetryRequest.createResponse(adjustedThrottleMs, errors)
     }
 

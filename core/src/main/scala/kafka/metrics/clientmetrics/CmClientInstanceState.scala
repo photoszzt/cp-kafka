@@ -117,15 +117,22 @@ class CmClientInstanceState private (clientInstanceId: Uuid,
     crc.getValue.toInt ^ clientInstanceId.hashCode
   }
 
+  // Returns true, if the time elapsed since last message is >= configured pushInterval, only exception to this
+  // rule is if client sends the isClientTerminating the flag, in that case broker accepts the message
+  // regardless of the push interval, however broker can accept only one request with isClientTerminating flag set.
+  // Whatever the reason if client keeps on sending the messages with isClientTerminating flag, subsequent requests
+  // are rejected if they don't fall into the current PushInterval.
   def canAcceptPushRequest(isClientTerminating: Boolean) : Boolean = {
-    val validPushInterval = (getCurrentTime - getLastAccessTs) >= getPushIntervalMs
-    validPushInterval || (isClientTerminating && !terminating)
+    val timeElapsedSinceLastMsg = getCurrentTime - getLastAccessTs
+    (timeElapsedSinceLastMsg >= getPushIntervalMs) || (isClientTerminating && !terminating)
   }
 
-  def getThrottleTimeMs(): Int = {
-    val delta: Int = (getCurrentTime - getLastAccessTs).toInt
-    if (delta < pushIntervalMs)
-      pushIntervalMs - delta
+  // Returns the current push interval if timeElapsed since last message > configured pushInterval
+  // otherwise, returns the delta (pushInterval - timeElapsedSinceLastMsg)
+  def getAdjustedPushInterval(): Int = {
+    val timeElapsedSinceLastMsg: Int = (getCurrentTime - getLastAccessTs).toInt
+    if (timeElapsedSinceLastMsg < pushIntervalMs)
+      pushIntervalMs - timeElapsedSinceLastMsg
     else
       pushIntervalMs
   }

@@ -110,7 +110,9 @@ public class PushTelemetryRequest extends AbstractRequest {
     }
 
     public ByteBuffer getMetricsData() throws Exception {
-        return decompressMetricsData(CompressionType.forId(this.data.compressionType()), this.data.metrics());
+        CompressionType cType = CompressionType.forId(this.data.compressionType());
+        return cType == CompressionType.NONE ?
+                ByteBuffer.wrap(this.data.metrics()) : decompressMetricsData(cType, this.data.metrics());
     }
 
     public static ByteBuffer decompressMetricsData(CompressionType compressionType, byte[] metrics) throws Exception {
@@ -119,7 +121,7 @@ public class PushTelemetryRequest extends AbstractRequest {
         try (InputStream in = compressionType.wrapForInput(data, RecordBatch.CURRENT_MAGIC_VALUE, BufferSupplier.create())) {
             Utils.readFully(in, decompressedData);
         }
-        return decompressedData;
+        return (ByteBuffer) decompressedData.flip();
     }
 
     public static PushTelemetryRequest parse(ByteBuffer buffer, short version) {

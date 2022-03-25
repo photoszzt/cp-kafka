@@ -30,7 +30,6 @@ import org.apache.kafka.common.utils.Utils
 import org.junit.jupiter.api.Assertions.{assertNotNull, assertTrue}
 import org.junit.jupiter.api.{AfterEach, Test}
 
-import java.nio.ByteBuffer
 import java.util.Properties
 
 class ClientMetricsRequestResponseTest {
@@ -295,7 +294,7 @@ class ClientMetricsRequestResponseTest {
       val pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
       assertTrue(pushResponse.error().code() == Errors.NONE.code())
       assertTrue(plugin.exportMetricsInvoked == count)
-      val s1 = new String(Utils.readBytes(plugin.metricsData.flip.asInstanceOf[ByteBuffer])).trim
+      val s1 = new String(Utils.readBytes(plugin.metricsData)).trim
       System.out.println(s1 + "==" + metricStr)
       assertTrue(s1.equals(metricStr))
       count += 1
