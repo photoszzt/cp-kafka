@@ -134,14 +134,14 @@ class ClientMetricsManager {
 
     val clientInstance = getClientInstance(clientInstanceId).getOrElse(createClientInstance(clientInstanceId, clientInfo))
     if (pushTelemetryRequest.getSubscriptionId != clientInstance.getSubscriptionId) {
-      val msg = String.format("Client's subscription id [%d] != Broker's cached client's subscription id [%d]",
-        pushTelemetryRequest.getSubscriptionId, clientInstance.getSubscriptionId)
+      val msg = String.format("Client's subscription id [%s] != Broker's cached client's subscription id [%s]",
+        pushTelemetryRequest.getSubscriptionId.toString, clientInstance.getSubscriptionId.toString)
       throw new ClientMetricsException(msg, Errors.UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID)
     }
 
     if (!isSupportedCompressionType(pushTelemetryRequest.data().compressionType)) {
-      val msg = String.format("Unknown compression type [%d] is received in PushTelemetryRequest from %s",
-        pushTelemetryRequest.data().compressionType(), pushTelemetryRequest.getClientInstanceId.toString)
+      val msg = String.format("Unknown compression type [%s] is received in PushTelemetryRequest from %s",
+        pushTelemetryRequest.data().compressionType().toString, pushTelemetryRequest.getClientInstanceId.toString)
       throw new ClientMetricsException(msg, Errors.UNSUPPORTED_COMPRESSION_TYPE)
     }
 
