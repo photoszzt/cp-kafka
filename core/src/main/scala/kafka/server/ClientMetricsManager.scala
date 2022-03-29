@@ -50,7 +50,7 @@ object ClientMetricsManager {
   // to the client.
   @Evolving
   def checkCmReceiverPluginConfigured()  = {
-    if (ClientMetricsReceiverPlugin.getCmReceiver() == null) {
+    if (ClientMetricsReceiverPlugin.getCmReceiver().isEmpty) {
       throw new ClientMetricsReceiverPluginNotFoundException("Broker does not have any configured client metrics receiver plugin")
     }
   }
@@ -77,24 +77,23 @@ class ClientMetricsManager {
     def getErrorCode: Errors = this.errorCode
   }
 
-  def getClientInstance(id: Uuid) =  {
-    if (id != null && id != Uuid.ZERO_UUID)
-      ClientMetricsCache.getInstance.get(id)
-    else null
+  def getClientInstance(id: Uuid) : Option[CmClientInstanceState] =  {
+    Option(id) match {
+      case None | Some(Uuid.ZERO_UUID) => None
+      case _ => ClientMetricsCache.getInstance.get(id)
+    }
   }
 
   def processGetSubscriptionRequest(subscriptionRequest: GetTelemetrySubscriptionRequest,
                                     clientInfo: CmClientInformation,
                                     throttleMs: Int): GetTelemetrySubscriptionResponse = {
-    var clientInstanceId = subscriptionRequest.getClientInstanceId
-    if (clientInstanceId == null || clientInstanceId == Uuid.ZERO_UUID) {
-      clientInstanceId = Uuid.randomUuid()
-    }
-    var clientInstance = getClientInstance(clientInstanceId)
-    if (clientInstance == null) {
-      clientInstance = createClientInstance(clientInstanceId, clientInfo)
+
+    val clientInstanceId = Option(subscriptionRequest.getClientInstanceId) match {
+      case None | Some(Uuid.ZERO_UUID) => Uuid.randomUuid()
+      case _ =>  subscriptionRequest.getClientInstanceId
     }
 
+    val clientInstance = getClientInstance(clientInstanceId).getOrElse(createClientInstance(clientInstanceId, clientInfo))
     val data =  new GetTelemetrySubscriptionsResponseData()
         .setThrottleTimeMs(throttleMs)
         .setClientInstanceId(clientInstanceId)
@@ -118,26 +117,22 @@ class ClientMetricsManager {
                           clientInfo: CmClientInformation): Unit = {
 
     def isSupportedCompressionType(id: Int) : Boolean = {
-      var supported = true
       try {
         CompressionType.forId(id)
+        true
       } catch {
-        case e: IllegalArgumentException => supported = false
+        case e: IllegalArgumentException => false
       }
-      supported
     }
 
-    val clientInstanceId = pushTelemetryRequest.getClientInstanceId
-    if (clientInstanceId == null || clientInstanceId == Uuid.ZERO_UUID) {
-      val msg = String.format("Invalid request from the client [%s], missing client instance id", clientInfo.getClientId)
-      throw new ClientMetricsException(msg, Errors.INVALID_REQUEST)
+    val clientInstanceId = Option(pushTelemetryRequest.getClientInstanceId) match {
+      case None | Some(Uuid.ZERO_UUID) =>
+        val msg = String.format("Invalid request from the client [%s], missing client instance id", clientInfo.getClientId)
+        throw new ClientMetricsException(msg, Errors.INVALID_REQUEST)
+      case _ => pushTelemetryRequest.getClientInstanceId
     }
 
-    var clientInstance = getClientInstance(clientInstanceId)
-    if (clientInstance == null) {
-      clientInstance = createClientInstance(clientInstanceId, clientInfo)
-    }
-
+    val clientInstance = getClientInstance(clientInstanceId).getOrElse(createClientInstance(clientInstanceId, clientInfo))
     if (pushTelemetryRequest.getSubscriptionId != clientInstance.getSubscriptionId) {
       val msg = String.format("Client's subscription id [%d] != Broker's cached client's subscription id [%d]",
         pushTelemetryRequest.getSubscriptionId, clientInstance.getSubscriptionId)
@@ -168,10 +163,10 @@ class ClientMetricsManager {
 
       // Before sending the response make sure to update the book keeping markers like
       // lastAccessTime, isTerminating flag etc..
-      if (clientInstance != null) {
-        adjustedThrottleMs = Math.max(clientInstance.getAdjustedPushInterval(), throttleMs)
-        clientInstance.updateLastAccessTs(getCurrentTime)
-        clientInstance.setTerminatingFlag(pushTelemetryRequest.isClientTerminating)
+      if (!clientInstance.isEmpty) {
+        adjustedThrottleMs = Math.max(clientInstance.get.getAdjustedPushInterval(), throttleMs)
+        clientInstance.get.updateLastAccessTs(getCurrentTime)
+        clientInstance.get.setTerminatingFlag(pushTelemetryRequest.isClientTerminating)
       }
 
       pushTelemetryRequest.createResponse(adjustedThrottleMs, errors)
@@ -183,10 +178,10 @@ class ClientMetricsManager {
       validatePushRequest(pushTelemetryRequest, clientInfo)
 
       // Push the metrics to the external client receiver plugin.
-      val metrics = pushTelemetryRequest.data().metrics()
-      if (metrics != null && !metrics.isEmpty) {
+      val metrics = Option(pushTelemetryRequest.data().metrics())
+      if (!metrics.isEmpty && !metrics.get.isEmpty) {
         val payload = ClientMetricsReceiverPlugin.createPayload(pushTelemetryRequest)
-        ClientMetricsReceiverPlugin.getCmReceiver().exportMetrics(requestContext, payload)
+        ClientMetricsReceiverPlugin.getCmReceiver().get.exportMetrics(requestContext, payload)
       }
     } catch {
       case e: ClientMetricsException => {

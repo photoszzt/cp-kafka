@@ -21,11 +21,11 @@ import org.apache.kafka.common.metrics.{ClientTelemetryPayload, ClientTelemetryR
 import org.apache.kafka.common.requests.PushTelemetryRequest
 
 object ClientMetricsReceiverPlugin {
-  var cmReceiver:ClientTelemetryReceiver = null
+  var cmReceiver :Option[ClientTelemetryReceiver] = None
   def getCmReceiver() = cmReceiver
 
   def init(receiver: ClientTelemetryReceiver) = {
-    cmReceiver = receiver
+    cmReceiver = Option(receiver)
   }
 
   def createPayload(request: PushTelemetryRequest): ClientTelemetryPayload = {

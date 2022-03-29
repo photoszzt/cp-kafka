@@ -47,6 +47,10 @@ object ClientMetricsTestUtils {
     getCM.updateSubscription(subscriptionId, properties)
   }
 
+  def getClientInstance(id: Uuid): CmClientInstanceState = {
+    getCM.getClientInstance(id).get
+  }
+
   def createClientInstance(selector: CmClientInformation): CmClientInstanceState = {
     getCM.createClientInstance(Uuid.randomUuid(), selector)
   }

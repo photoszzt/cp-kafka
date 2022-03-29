@@ -16,7 +16,7 @@
  */
 package kafka.metrics
 
-import kafka.metrics.ClientMetricsTestUtils.{createCMSubscription, getCM, getSerializedMetricsData, setupClientMetricsPlugin}
+import kafka.metrics.ClientMetricsTestUtils.{createCMSubscription, getCM, getClientInstance, getSerializedMetricsData, setupClientMetricsPlugin}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION}
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMetrics
 import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation}
@@ -65,7 +65,7 @@ class ClientMetricsRequestResponseTest {
 
     // verify all the parameters ..
     assertTrue(clientInstanceId != Uuid.ZERO_UUID)
-    val cmClient = getCM.getClientInstance(clientInstanceId)
+    val cmClient = getClientInstance(clientInstanceId)
     assertTrue(cmClient != null)
 
     assertTrue(response.throttleTimeMs() == 20)
@@ -91,7 +91,7 @@ class ClientMetricsRequestResponseTest {
     // Create a python client that do not have any matching subscriptions.
     val clientInfo = CmClientInformation("testClient1", "clientId3", "Python", "11.1.0", "192.168.1.7", "9093")
     var response = sendGetSubscriptionRequest(clientInfo).data()
-    var cmClient = getCM.getClientInstance(response.clientInstanceId())
+    var cmClient = getClientInstance(response.clientInstanceId())
     val clientInstanceId = response.clientInstanceId()
 
     // Push interval must be set to the default push interval and requested metrics list should be empty
@@ -109,7 +109,7 @@ class ClientMetricsRequestResponseTest {
 
     // should have got the positive response with all the valid parameters
     response = sendGetSubscriptionRequest(clientInfo, clientInstanceId).data()
-    cmClient = getCM.getClientInstance(clientInstanceId)
+    cmClient = getClientInstance(clientInstanceId)
     assertTrue(response.pushIntervalMs() == subscription2.getPushIntervalMs)
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
     assertTrue(!response.requestedMetrics().isEmpty)
@@ -132,7 +132,7 @@ class ClientMetricsRequestResponseTest {
 
     // verify all the parameters ..
     assertTrue(response.clientInstanceId() != Uuid.ZERO_UUID)
-    val cmClient = getCM.getClientInstance(response.clientInstanceId())
+    val cmClient = getClientInstance(response.clientInstanceId())
     assertTrue(cmClient != null)
     assertTrue(response.pushIntervalMs() == cmClient.getPushIntervalMs)
     assertTrue(response.subscriptionId() == cmClient.getSubscriptionId)
@@ -149,7 +149,7 @@ class ClientMetricsRequestResponseTest {
     // Submit a request to get the subscribed metrics
     var response = sendGetSubscriptionRequest(clientInfo).data()
     val clientInstanceId = response.clientInstanceId()
-    var cmClient = getCM.getClientInstance(clientInstanceId)
+    var cmClient = getClientInstance(clientInstanceId)
     assertTrue(cmClient != null)
 
     val oldSubscriptionId = response.subscriptionId()
@@ -166,7 +166,7 @@ class ClientMetricsRequestResponseTest {
     // should have got the invalid response with empty metrics list.
     // set the client instance id which is obtained in earlier request.
     val res = sendGetSubscriptionRequest(clientInfo, clientInstanceId)
-    cmClient = getCM.getClientInstance(clientInstanceId)
+    cmClient = getClientInstance(clientInstanceId)
     assertTrue(cmClient != null)
 
     response = res.data()

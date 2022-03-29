@@ -23,10 +23,10 @@ import org.apache.kafka.common.metrics.ClientTelemetryPayload;
 import java.nio.ByteBuffer;
 
 public class ClientMetricsPayload implements ClientTelemetryPayload {
-    final Uuid clientInstanceId;
-    final boolean isClientTerminating;
-    final String metricsContentType;
-    final ByteBuffer metricsData;
+    final private Uuid clientInstanceId;
+    final private boolean isClientTerminating;
+    final private String metricsContentType;
+    final private ByteBuffer metricsData;
 
     ClientMetricsPayload(Uuid clientId, boolean terminating, String contentType, ByteBuffer data) {
         this.clientInstanceId = clientId;

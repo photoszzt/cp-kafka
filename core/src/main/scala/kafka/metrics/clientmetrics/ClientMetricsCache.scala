@@ -84,9 +84,12 @@ class ClientMetricsCache(maxSize: Int) {
   private val _cache = new LRUCache[Uuid, ClientMetricsCacheValue](maxSize)
   def getSize = _cache.size()
   def clear() = _cache.clear()
-  def get(id: Uuid): CmClientInstanceState =  {
-    val value = _cache.get(id)
-    if (value != null) value.getClientInstance else null
+  def get(id: Uuid): Option[CmClientInstanceState] =  {
+    val value = Option(_cache.get(id))
+    value match {
+      case None => None
+      case _ => Option(value.get.getClientInstance)
+    }
   }
 
   /**
