@@ -221,7 +221,7 @@ class ClientMetricsRequestResponseTest {
     // first try to send the request without updating the new subscription id and it should fail.
     // send the second request with new subscription id and then id should pass.
     val pushInterval = 10
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
     createCMSubscription("cm_1", props)
     val response2 = sendGetSubscriptionRequest(clientInfo).data()
 
@@ -242,7 +242,7 @@ class ClientMetricsRequestResponseTest {
     val plugin = setupClientMetricsPlugin()
     val props = new Properties()
     val pushInterval = 10
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
     val subscription = createCMSubscription("cm_2", props)
     assertNotNull(subscription)
 
@@ -275,7 +275,7 @@ class ClientMetricsRequestResponseTest {
     val plugin = setupClientMetricsPlugin()
     val props = new Properties()
     val pushInterval = 5
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval)
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
     val subscription = createCMSubscription("cm_5", props)
     assertNotNull(subscription)
 
@@ -297,8 +297,7 @@ class ClientMetricsRequestResponseTest {
       assertEquals(pushResponse.error().code(), Errors.NONE.code())
       assertEquals(plugin.exportMetricsInvoked, count)
       val s1 = new String(Utils.readBytes(plugin.metricsData)).trim
-      System.out.println(s1 + "==" + metricStr)
-      assertTrue(s1.equals(metricStr))
+      assertEquals(s1, metricStr)
       count += 1
     })
   }

@@ -97,15 +97,16 @@ object ClientMetricsTestUtils {
     def newMetricName(name: String) = new MetricName(name, "g_" + name, "desc_" + name, Collections.emptyMap())
     def newTelemetryMetric(metricName: MetricName,  value: Long) = new TelemetryMetric(metricName, MetricType.sum, value)
     val telemetryMetrics = new util.ArrayList[TelemetryMetric]
-    var metricsStr = new String()
+    val metricsStr = new StringBuilder()
     for ((k, v) <- metrics) {
      val name = newMetricName(k)
       val metric = newTelemetryMetric(name, v)
-      metricsStr += String.format("%s: %d\n", name.toString, v)
+      val tmpStr = name.toString + ": " + v + "\n"
+      metricsStr.append(tmpStr)
       telemetryMetrics.add(metric)
     }
     val telemetrySerializer = new StringTelemetrySerializer
     val buffer = ClientTelemetryUtils.serialize(telemetryMetrics, compressionType, telemetrySerializer)
-    (buffer, metricsStr.trim)
+    (buffer, metricsStr.toString().trim)
   }
 }
