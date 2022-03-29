@@ -157,7 +157,7 @@ class ClientMetricsManager {
                                   clientInfo: CmClientInformation,
                                   throttleMs: Int): PushTelemetryResponse = {
 
-    def createResponse(errors: Errors) : PushTelemetryResponse = {
+    def createResponse(errors: Option[Errors]) : PushTelemetryResponse = {
       var adjustedThrottleMs = throttleMs
       val clientInstance = getClientInstance(pushTelemetryRequest.getClientInstanceId)
 
@@ -169,7 +169,7 @@ class ClientMetricsManager {
         clientInstance.get.setTerminatingFlag(pushTelemetryRequest.isClientTerminating)
       }
 
-      pushTelemetryRequest.createResponse(adjustedThrottleMs, errors)
+      pushTelemetryRequest.createResponse(adjustedThrottleMs, errors.getOrElse(Errors.NONE))
     }
 
     var errorCode = Errors.NONE
@@ -191,7 +191,7 @@ class ClientMetricsManager {
     }
 
     // Finally, send the response back to the client
-    createResponse(errorCode)
+    createResponse(Option(errorCode))
   }
 
   def updateSubscription(groupId :String, properties :Properties) = {
