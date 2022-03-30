@@ -106,7 +106,7 @@ public class PushTelemetryRequest extends AbstractRequest {
         // Future versions of PushTelemetryRequest and GetTelemetrySubscriptionsRequest may include a content-type
         // field to allow for updated OTLP format versions (or additional formats), but this field is currently not
         // included since only one format is specified in the current proposal of the kip-714
-        return null;
+        return "OTLP";
     }
 
     public ByteBuffer getMetricsData() throws Exception {
@@ -117,7 +117,7 @@ public class PushTelemetryRequest extends AbstractRequest {
 
     public static ByteBuffer decompressMetricsData(CompressionType compressionType, byte[] metrics) throws Exception {
         ByteBuffer data = ByteBuffer.wrap(metrics);
-        ByteBuffer decompressedData = ByteBuffer.allocate(10000);
+        ByteBuffer decompressedData = ByteBuffer.allocate(data.capacity() * 4);
         try (InputStream in = compressionType.wrapForInput(data, RecordBatch.CURRENT_MAGIC_VALUE, BufferSupplier.create())) {
             Utils.readFully(in, decompressedData);
         }

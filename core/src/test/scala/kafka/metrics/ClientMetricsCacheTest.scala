@@ -17,7 +17,6 @@
 package kafka.metrics
 
 import kafka.metrics.ClientMetricsTestUtils.{createCMSubscription, createClientInstance, defaultMetrics, defaultPushInterval, getClientInstance}
-import kafka.metrics.clientmetrics.ClientMetricsCache.DEFAULT_TTL_MS
 import kafka.metrics.clientmetrics.ClientMetricsConfig.ClientMatchingParams.{CLIENT_SOFTWARE_NAME, CLIENT_SOFTWARE_VERSION, CLIENT_SOURCE_ADDRESS}
 import kafka.metrics.clientmetrics.{ClientMetricsCache, ClientMetricsConfig, CmClientInformation}
 import kafka.utils.TestUtils
@@ -243,7 +242,7 @@ class ClientMetricsCacheTest {
 
 
   @Test
-  def testCacheGC(): Unit = {
+  def testCleanupTtlEntries(): Unit = {
     val cache = ClientMetricsCache.getInstance
     val client1 = createClientInstance(CmClientInformation("testClient1", "clientId1", "Java", "11.1.0.1", "", ""))
     val client2 = createClientInstance(CmClientInformation("testClient2", "clientId2", "Python", "8.2.1", "", ""))
@@ -251,13 +250,12 @@ class ClientMetricsCacheTest {
     assertEquals(cache.getSize, 3)
 
     // Modify client3's timestamp to meet the TTL expiry limit.
-    val ts = client3.getLastAccessTs -
-                    (Math.max(3 * client3.getPushIntervalMs, DEFAULT_TTL_MS) + 10)
+    val ts = client3.getLastAccessTs - (Math.max(3 * client3.getPushIntervalMs, ClientMetricsCache.getTtlTs) + 10)
     client3.updateLastAccessTs(ts)
-    ClientMetricsCache.gcTs = ClientMetricsCache.gcTs - (ClientMetricsCache.CM_CACHE_GC_INTERVAL_MS + 10)
+    ClientMetricsCache.setLastCleanupTs(ClientMetricsCache.getLastCleanupTs - (ClientMetricsCache.getCleanupInterval + 10))
 
     // Run the GC and wait until client3 entry is removed from the cache
-    ClientMetricsCache.runGCIfNeeded(true)
+    ClientMetricsCache.deleteExpiredEntries(true)
     TestUtils.waitUntilTrue(() => ClientMetricsCache.getInstance.getSize == 2, "Failed to run GC on Client Metrics Cache", 6000)
 
     // Make sure that client3 is removed from the cache.

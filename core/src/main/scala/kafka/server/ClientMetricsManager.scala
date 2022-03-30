@@ -84,12 +84,22 @@ class ClientMetricsManager {
     }
   }
 
+  // Generates a new random client id and makes sure that it was not assigned to any of the previous clients
+  def generateNewClientId(): Uuid = {
+    var id = Uuid.randomUuid()
+    while (!ClientMetricsCache.getInstance.get(id).isEmpty) {
+      id = Uuid.randomUuid()
+    }
+    id
+  }
+
   def processGetSubscriptionRequest(subscriptionRequest: GetTelemetrySubscriptionRequest,
                                     clientInfo: CmClientInformation,
                                     throttleMs: Int): GetTelemetrySubscriptionResponse = {
 
     val clientInstanceId = Option(subscriptionRequest.getClientInstanceId) match {
-      case None | Some(Uuid.ZERO_UUID) => Uuid.randomUuid()
+      case None | Some(Uuid.ZERO_UUID) => generateNewClientId()
+
       case _ =>  subscriptionRequest.getClientInstanceId
     }
 
@@ -133,6 +143,23 @@ class ClientMetricsManager {
     }
 
     val clientInstance = getClientInstance(clientInstanceId).getOrElse(createClientInstance(clientInstanceId, clientInfo))
+
+    // Once client set the state to Terminating do not accept any further requests.
+    if (clientInstance.isClientTerminating) {
+      val msg = String.format(
+        "Client [%s] sent the previous request with state terminating to TRUE, can not accept any requests after that",
+        pushTelemetryRequest.getClientInstanceId.toString)
+      throw new ClientMetricsException(msg, Errors.INVALID_REQUEST)
+    }
+
+    // Make sure that this request is arrived after the next push interval, but this check would be bypassed if the
+    // client has set the Terminating flag.
+    if (!clientInstance.canAcceptPushRequest() && !pushTelemetryRequest.isClientTerminating) {
+      val msg = String.format("Request from the client [%s] arrived before the next push interval time",
+          pushTelemetryRequest.getClientInstanceId.toString)
+      throw new ClientMetricsException(msg, Errors.CLIENT_METRICS_RATE_LIMITED)
+    }
+
     if (pushTelemetryRequest.getSubscriptionId != clientInstance.getSubscriptionId) {
       val msg = String.format("Client's subscription id [%s] != Broker's cached client's subscription id [%s]",
         pushTelemetryRequest.getSubscriptionId.toString, clientInstance.getSubscriptionId.toString)
@@ -145,11 +172,6 @@ class ClientMetricsManager {
       throw new ClientMetricsException(msg, Errors.UNSUPPORTED_COMPRESSION_TYPE)
     }
 
-    if (!clientInstance.canAcceptPushRequest(pushTelemetryRequest.isClientTerminating)) {
-      val msg = String.format("Request from the client [%s] arrived before the throttling time",
-        pushTelemetryRequest.getClientInstanceId.toString)
-      throw new ClientMetricsException(msg, Errors.THROTTLING_QUOTA_EXCEEDED)
-    }
   }
 
   def processPushTelemetryRequest(pushTelemetryRequest: PushTelemetryRequest,
@@ -166,7 +188,11 @@ class ClientMetricsManager {
       if (!clientInstance.isEmpty) {
         adjustedThrottleMs = Math.max(clientInstance.get.getAdjustedPushInterval(), throttleMs)
         clientInstance.get.updateLastAccessTs(getCurrentTime)
-        clientInstance.get.setTerminatingFlag(pushTelemetryRequest.isClientTerminating)
+
+        // update the client terminating flag only once
+        if (!pushTelemetryRequest.isClientTerminating) {
+          clientInstance.get.setTerminatingFlag(pushTelemetryRequest.isClientTerminating)
+        }
       }
 
       pushTelemetryRequest.createResponse(adjustedThrottleMs, errors.getOrElse(Errors.NONE))
@@ -204,7 +230,7 @@ class ClientMetricsManager {
     // Add to the cache and if cache size > max entries then time to make some room by running
     // GC to clean up all the expired entries in the cache.
     ClientMetricsCache.getInstance.add(clientInstance)
-    ClientMetricsCache.runGCIfNeeded()
+    ClientMetricsCache.deleteExpiredEntries()
     clientInstance
   }
 }

@@ -179,24 +179,34 @@ class ClientMetricsRequestResponseTest {
   @Test
   def testPushMetricsRequestParameters(): Unit = {
     val props = new Properties()
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, (60 * 1000).toString)
+    val pushInterval = 10
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
     val subscription = createCMSubscription("cm_1", props)
     assertNotNull(subscription)
 
     val clientInfo = CmClientInformation("testClient1", "clientId1", "Java", "11.1.0", "192.168.1.7", "9093")
     val response = sendGetSubscriptionRequest(clientInfo).data()
     assertNotNull(response)
+    val cmClient = getClientInstance(response.clientInstanceId())
+    assertNotNull(cmClient)
+
     val data = new PushTelemetryRequestData()
 
     // Test-1: send the request with no clientInstanceId.
-    var pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    var pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
     assertNotNull(pushResponse)
     assertEquals(pushResponse.error().code(), Errors.INVALID_REQUEST.code())
 
-    // Test-2: send the request with incorrect subscription Id
+    // Test-2: send the request with no subscription Id
+    data.setClientInstanceId(response.clientInstanceId())
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+    assertNotNull(pushResponse)
+    assertEquals(pushResponse.error().code(), Errors.UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID.code())
+
+    // Test-3: send the request with incorrect subscription Id
     data.setClientInstanceId(response.clientInstanceId())
     data.setSubscriptionId(response.subscriptionId() ^ 0x1234)
-    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
     assertNotNull(pushResponse)
     assertEquals(pushResponse.error().code(), Errors.UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID.code())
 
@@ -204,37 +214,79 @@ class ClientMetricsRequestResponseTest {
     data.setClientInstanceId(response.clientInstanceId())
     data.setSubscriptionId(response.subscriptionId())
     data.setCompressionType(0x30)
-    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
     assertNotNull(pushResponse)
     assertEquals(pushResponse.error().code(), Errors.UNSUPPORTED_COMPRESSION_TYPE.code())
 
-    // Test-4: send the request with expired throttle time.
-    data.setClientInstanceId(response.clientInstanceId())
-    data.setSubscriptionId(response.subscriptionId())
-    data.setCompressionType(CompressionType.NONE.id.toByte)
-    pushResponse = sendPushTelemetryRequest(data, clientInfo)
-    assertNotNull(pushResponse)
-    assertEquals(pushResponse.error().code(), Errors.THROTTLING_QUOTA_EXCEEDED.code())
-
-    // Test-5: Update the throttle time to 100ms and send the request
-    // since we have updated the subscription information, it would also change the SubscriptionId,
+    // TEST-4 Update the subscription information and send the request.
+    // Since we have updated the subscription information, it would also change the SubscriptionId,
     // first try to send the request without updating the new subscription id and it should fail.
     // send the second request with new subscription id and then id should pass.
-    val pushInterval = 10
-    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
     createCMSubscription("cm_1", props)
     val response2 = sendGetSubscriptionRequest(clientInfo).data()
 
     data.setClientInstanceId(response2.clientInstanceId())
     data.setCompressionType(CompressionType.NONE.id.toByte)
-    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
     assertEquals(pushResponse.error().code(), Errors.UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID.code())
 
-    // Update the subscription id, also wait enough to pass the throttling interval
+    // Update the subscription id with the new id from the response2
     data.setSubscriptionId(response2.subscriptionId())
     pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
     assertEquals(pushResponse.error().code(), Errors.NONE.code())
     assertEquals(pushResponse.data().throttleTimeMs(), 5000)
+  }
+
+  @Test
+  def testPushMetricsRateLimiting(): Unit = {
+    val props = new Properties()
+    var pushInterval = 60 * 1000
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
+    val subscription = createCMSubscription("cm_1", props)
+    assertNotNull(subscription)
+
+    val clientInfo = CmClientInformation("testClient1", "clientId1", "Java", "11.1.0", "192.168.1.7", "9093")
+    val response = sendGetSubscriptionRequest(clientInfo).data()
+    assertNotNull(response)
+
+    val data = new PushTelemetryRequestData()
+    data.setClientInstanceId(response.clientInstanceId())
+    data.setSubscriptionId(response.subscriptionId())
+    data.setCompressionType(CompressionType.GZIP.id.toByte)
+
+    // Test-1: send the request before the next push interval
+    var pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertNotNull(pushResponse)
+    assertEquals(pushResponse.error().code(), Errors.CLIENT_METRICS_RATE_LIMITED.code())
+
+    // Test-2: set the Terminating flag, this time push request should have been accepted
+    // even though request is sent before the next push interval
+    data.setTerminating(true)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo)
+    assertNotNull(pushResponse)
+    assertEquals(pushResponse.error().code(), Errors.NONE.code())
+
+    // Update the push interval to 10 ms also update the new subscription id and carry
+    // forward the terminating flag in the new client instance object
+    pushInterval = 10
+    props.put(ClientMetricsConfig.ClientMetrics.PushIntervalMs, pushInterval.toString)
+    createCMSubscription("cm_1", props)
+    val response2 = sendGetSubscriptionRequest(clientInfo).data()
+    data.setClientInstanceId(response2.clientInstanceId())
+    data.setSubscriptionId(response2.subscriptionId())
+    getClientInstance(response2.clientInstanceId()).setTerminatingFlag(true)
+
+    // Test-3: send the second push request with terminating flag set. This time request should
+    // have been rejected as only one request should be accepted when client is terminating
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+    assertNotNull(pushResponse)
+    assertEquals(pushResponse.error().code(), Errors.INVALID_REQUEST.code())
+
+    // Test-4: Set the terminating flag to false, even then client request should be rejected
+    data.setTerminating(false)
+    pushResponse = sendPushTelemetryRequest(data, clientInfo, pushInterval)
+    assertNotNull(pushResponse)
+    assertEquals(pushResponse.error().code(), Errors.INVALID_REQUEST.code())
   }
 
   @Test

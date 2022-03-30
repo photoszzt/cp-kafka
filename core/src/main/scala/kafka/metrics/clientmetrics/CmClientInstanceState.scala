@@ -101,6 +101,7 @@ class CmClientInstanceState private (clientInstanceId: Uuid,
   def getSubscriptions = subscriptions
   def getMetrics = metrics
   def getAllMetricsSubscribed = allMetricsSubscribed
+  def isClientTerminating = this.terminating
   def updateLastAccessTs(tsInMs: Long): Unit =  { this.lastAccessTs = tsInMs }
   def setTerminatingFlag(f: Boolean): Unit =  { this.terminating = f }
 
@@ -122,9 +123,10 @@ class CmClientInstanceState private (clientInstanceId: Uuid,
   // regardless of the push interval, however broker can accept only one request with isClientTerminating flag set.
   // Whatever the reason if client keeps on sending the messages with isClientTerminating flag, subsequent requests
   // are rejected if they don't fall into the current PushInterval.
-  def canAcceptPushRequest(isClientTerminating: Boolean) : Boolean = {
+  def canAcceptPushRequest() : Boolean = {
     val timeElapsedSinceLastMsg = getCurrentTime - getLastAccessTs
-    (timeElapsedSinceLastMsg >= getPushIntervalMs) || (isClientTerminating && !terminating)
+    timeElapsedSinceLastMsg >= getPushIntervalMs
+    //(timeElapsedSinceLastMsg >= getPushIntervalMs) || (clientTerminatingFlagSet && !this.isClientTerminating)
   }
 
   // Returns the current push interval if timeElapsed since last message > configured pushInterval

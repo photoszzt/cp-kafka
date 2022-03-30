@@ -55,22 +55,26 @@ import scala.util.{Failure, Success}
  *      read/get operations.
  */
 object  ClientMetricsCache {
-  val DEFAULT_TTL_MS = 60 * 1000  // One minute
-  val CM_CACHE_GC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
-  val CM_CACHE_MAX_SIZE = 16384 // Max cache size (16k active client connections per broker)
-  var gcTs = getCurrentTime
+  private val DEFAULT_TTL_MS = 60 * 1000  // One minute
+  private val CM_CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+  private val CM_CACHE_MAX_SIZE = 16384 // Max cache size (16k active client connections per broker)
+  private var lastCleanupTs = getCurrentTime
   private val cmCache = new ClientMetricsCache(CM_CACHE_MAX_SIZE)
 
   def getInstance = cmCache
+  def getTtlTs = DEFAULT_TTL_MS
+  def getCleanupInterval = CM_CACHE_CLEANUP_INTERVAL_MS
+  def getLastCleanupTs = lastCleanupTs
+  def setLastCleanupTs(ts: Long) = lastCleanupTs = ts
 
   /**
    * Launches the asynchronous task to clean the client metric subscriptions that are expired in the cache.
    */
-  def runGCIfNeeded(forceGC: Boolean = false): Unit = {
+  def deleteExpiredEntries(force: Boolean = false): Unit = {
     synchronized {
-      val timeElapsed = getCurrentTime - gcTs
-      if (forceGC || cmCache.getSize > CM_CACHE_MAX_SIZE && timeElapsed > CM_CACHE_GC_INTERVAL_MS) {
-        gcTs = getCurrentTime
+      val timeElapsed = getCurrentTime - lastCleanupTs
+      if (force || cmCache.getSize > CM_CACHE_MAX_SIZE && timeElapsed > CM_CACHE_CLEANUP_INTERVAL_MS) {
+        setLastCleanupTs(getCurrentTime)
         cmCache.cleanupExpiredEntries("GC").onComplete {
           case Success(value) => info(s"Client Metrics subscriptions cache cleaned up $value entries")
           case Failure(e) => error(s"Client Metrics subscription cache cleanup failed: ${e.getMessage}")

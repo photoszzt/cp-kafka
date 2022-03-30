@@ -20,6 +20,7 @@ import org.apache.kafka.common.InvalidRecordException;
 import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.errors.BrokerIdNotRegisteredException;
 import org.apache.kafka.common.errors.BrokerNotAvailableException;
+import org.apache.kafka.common.errors.ClientMetricsRateLimitedException;
 import org.apache.kafka.common.errors.ClusterAuthorizationException;
 import org.apache.kafka.common.errors.ConcurrentTransactionsException;
 import org.apache.kafka.common.errors.ControllerMovedException;
@@ -366,7 +367,8 @@ public enum Errors {
     INCONSISTENT_CLUSTER_ID(104, "The clusterId in the request does not match that found on the server", InconsistentClusterIdException::new),
     TRANSACTIONAL_ID_NOT_FOUND(105, "The transactionalId could not be found", TransactionalIdNotFoundException::new),
     FETCH_SESSION_TOPIC_ID_ERROR(106, "The fetch session encountered inconsistent topic ID usage", FetchSessionTopicIdException::new),
-    UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID(107, "Client metric subscription id does not match with broker's cached value", UnknownClientMetricsSubscriptionIdException::new);
+    CLIENT_METRICS_RATE_LIMITED(107, "Client pushed the metrics before the next push interval", ClientMetricsRateLimitedException::new),
+    UNKNOWN_CLIENT_METRICS_SUBSCRIPTION_ID(108, "Client metric subscription id does not match with broker's cached value", UnknownClientMetricsSubscriptionIdException::new);
 
     private static final Logger log = LoggerFactory.getLogger(Errors.class);
 
