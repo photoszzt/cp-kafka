@@ -17,7 +17,7 @@
 
 package org.apache.kafka.common.errors;
 
-public class UnknownClientMetricsSubscriptionIdException extends  ApiException {
+public class UnknownClientMetricsSubscriptionIdException extends ApiException {
     private static final long serialVersionUID = 1;
     public UnknownClientMetricsSubscriptionIdException(String s) {
         super(s);

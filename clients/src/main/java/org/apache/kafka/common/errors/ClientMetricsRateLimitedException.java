@@ -17,7 +17,7 @@
 
 package org.apache.kafka.common.errors;
 
-public class ClientMetricsRateLimitedException  extends  ApiException {
+public class ClientMetricsRateLimitedException extends ApiException {
     private static final long serialVersionUID = 1;
     public ClientMetricsRateLimitedException(String s) {
         super(s);
