@@ -26,12 +26,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.kafka.clients.ApiVersions;
 import org.apache.kafka.clients.producer.Callback;
+import org.apache.kafka.clients.ClientTelemetry;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.utils.ProducerIdAndEpoch;
 import org.apache.kafka.common.Cluster;
@@ -87,6 +89,9 @@ public class RecordAccumulator {
     private final Map<String, Integer> nodesDrainIndex;
     private final TransactionManager transactionManager;
     private long nextBatchExpiryTimeMs = Long.MAX_VALUE; // the earliest time (absolute) a batch will expire.
+    private final Optional<ClientTelemetry> clientTelemetry;
+    private final Optional<ProducerMetricsRegistry> producerMetricsRegistry;
+    private final Optional<ProducerTopicMetricsRegistry> producerTopicMetricsRegistry;
 
     /**
      * Create a new record accumulator
@@ -108,6 +113,7 @@ public class RecordAccumulator {
      * @param transactionManager The shared transaction state object which tracks producer IDs, epochs, and sequence
      *                           numbers per partition.
      * @param bufferPool The buffer pool
+     * @param clientTelemetry {@link ClientTelemetry} used to record metrics
      */
     public RecordAccumulator(LogContext logContext,
                              int batchSize,
@@ -121,7 +127,8 @@ public class RecordAccumulator {
                              Time time,
                              ApiVersions apiVersions,
                              TransactionManager transactionManager,
-                             BufferPool bufferPool) {
+                             BufferPool bufferPool,
+                             Optional<ClientTelemetry> clientTelemetry) {
         this.logContext = logContext;
         this.log = logContext.logger(RecordAccumulator.class);
         this.closed = false;
@@ -141,6 +148,9 @@ public class RecordAccumulator {
         this.apiVersions = apiVersions;
         nodesDrainIndex = new HashMap<>();
         this.transactionManager = transactionManager;
+        this.clientTelemetry = clientTelemetry;
+        this.producerMetricsRegistry = clientTelemetry.map(ct -> new ProducerMetricsRegistry(ct.metrics()));
+        this.producerTopicMetricsRegistry = clientTelemetry.map(ct -> new ProducerTopicMetricsRegistry(ct.metrics()));
         registerMetrics(metrics, metricGrpName);
     }
 
@@ -163,6 +173,7 @@ public class RecordAccumulator {
      * @param transactionManager The shared transaction state object which tracks producer IDs, epochs, and sequence
      *                           numbers per partition.
      * @param bufferPool The buffer pool
+     * @param clientTelemetry {@link ClientTelemetry} used to record metrics
      */
     public RecordAccumulator(LogContext logContext,
                              int batchSize,
@@ -175,7 +186,8 @@ public class RecordAccumulator {
                              Time time,
                              ApiVersions apiVersions,
                              TransactionManager transactionManager,
-                             BufferPool bufferPool) {
+                             BufferPool bufferPool,
+                             Optional<ClientTelemetry> clientTelemetry) {
         this(logContext,
             batchSize,
             compression,
@@ -188,7 +200,8 @@ public class RecordAccumulator {
             time,
             apiVersions,
             transactionManager,
-            bufferPool);
+            bufferPool,
+            clientTelemetry);
     }
 
     private void registerMetrics(Metrics metrics, String metricGrpName) {
@@ -280,7 +293,7 @@ public class RecordAccumulator {
                                 partitionInfo.partition(), topic);
                         continue;
                     }
-                    RecordAppendResult appendResult = tryAppend(timestamp, key, value, headers, callbacks, dq, nowMs);
+                    RecordAppendResult appendResult = tryAppend(topic, effectivePartition, timestamp, key, value, headers, callbacks, dq, nowMs);
                     if (appendResult != null) {
                         topicInfo.builtInPartitioner.updatePartitionInfo(partitionInfo, appendResult.appendedBytes, cluster);
                         return appendResult;
@@ -347,7 +360,7 @@ public class RecordAccumulator {
 
         // Update the current time in case the buffer allocation blocked above.
         long nowMs = time.milliseconds();
-        RecordAppendResult appendResult = tryAppend(timestamp, key, value, headers, callbacks, dq, nowMs);
+        RecordAppendResult appendResult = tryAppend(topic, partition, timestamp, key, value, headers, callbacks, dq, nowMs);
         if (appendResult != null) {
             // Somebody else found us a batch, return the one we waited for! Hopefully this doesn't happen often...
             return appendResult;
@@ -380,7 +393,7 @@ public class RecordAccumulator {
      *  and memory records built) in one of the following cases (whichever comes first): right before send,
      *  if it is expired, or when the producer is closed.
      */
-    private RecordAppendResult tryAppend(long timestamp, byte[] key, byte[] value, Header[] headers,
+    private RecordAppendResult tryAppend(String topic, int partition, long timestamp, byte[] key, byte[] value, Header[] headers,
                                          Callback callback, Deque<ProducerBatch> deque, long nowMs) {
         if (closed)
             throw new KafkaException("Producer closed while send in progress");
@@ -391,6 +404,22 @@ public class RecordAccumulator {
             if (future == null) {
                 last.closeForRecordAppends();
             } else {
+                if (producerMetricsRegistry.isPresent() || producerTopicMetricsRegistry.isPresent()) {
+                    int queueBytes = last.records().sizeInBytes();
+                    int queueCount = last.recordCount;
+
+                    producerMetricsRegistry.ifPresent(pmr -> {
+                        pmr.gaugeSensor(pmr.recordQueueBytes).record(queueBytes);
+                        pmr.gaugeSensor(pmr.recordQueueCount).record(queueCount);
+                    });
+
+                    producerTopicMetricsRegistry.ifPresent(ptmr -> {
+                        TopicPartition tp = new TopicPartition(topic, partition);
+                        ptmr.gaugeSensor(ptmr.recordQueueBytes(tp)).record(queueBytes);
+                        ptmr.gaugeSensor(ptmr.recordQueueCount(tp)).record(queueCount);
+                    });
+                }
+
                 int appendedBytes = last.estimatedSizeInBytes() - initialBytes;
                 return new RecordAppendResult(future, deque.size() > 1 || last.isFull(), false, false, appendedBytes);
             }
@@ -851,6 +880,22 @@ public class RecordAccumulator {
             // close() is particularly expensive
 
             batch.close();
+
+            if (producerMetricsRegistry.isPresent() || producerTopicMetricsRegistry.isPresent()) {
+                int queueBytes = batch.records().sizeInBytes();
+                int queueCount = batch.recordCount;
+
+                producerMetricsRegistry.ifPresent(pmr -> {
+                    pmr.gaugeSensor(pmr.recordQueueBytes).record(-queueBytes);
+                    pmr.gaugeSensor(pmr.recordQueueCount).record(-queueCount);
+                });
+
+                producerTopicMetricsRegistry.ifPresent(ptmr -> {
+                    ptmr.gaugeSensor(ptmr.recordQueueBytes(tp)).record(-queueBytes);
+                    ptmr.gaugeSensor(ptmr.recordQueueCount(tp)).record(-queueCount);
+                });
+            }
+
             size += batch.records().sizeInBytes();
             ready.add(batch);
 

@@ -19,6 +19,7 @@ package org.apache.kafka.clients.consumer.internals;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import org.apache.kafka.clients.ClientTelemetry;
 import org.apache.kafka.clients.GroupRebalanceConfig;
 import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -153,6 +154,8 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                                SubscriptionState subscriptions,
                                Metrics metrics,
                                String metricGrpPrefix,
+                               Optional<ClientTelemetry> clientTelemetry,
+                               Optional<ConsumerMetricsRegistry> consumerMetricsRegistry,
                                Time time,
                                boolean autoCommitEnabled,
                                int autoCommitIntervalMs,
@@ -163,7 +166,9 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
               client,
               metrics,
               metricGrpPrefix,
-              time);
+              time,
+              clientTelemetry,
+              consumerMetricsRegistry);
         this.rebalanceConfig = rebalanceConfig;
         this.log = logContext.logger(ConsumerCoordinator.class);
         this.metadata = metadata;
@@ -305,6 +310,12 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
     private Exception invokePartitionsAssigned(final SortedSet<TopicPartition> assignedPartitions) {
         log.info("Adding newly assigned partitions: {}", Utils.join(assignedPartitions, ", "));
+
+        consumerMetricsRegistry.ifPresent(cmr -> {
+            cmr.sumSensor(cmr.groupRebalanceCount).record(1);
+            cmr.gaugeSensor(cmr.assignmentPartitionCount).record(assignedPartitions.size());
+            cmr.gaugeSensor(cmr.groupAssignmentPartitionCount).record(assignedPartitions.size());
+        });
 
         ConsumerRebalanceListener listener = subscriptions.rebalanceListener();
         try {
@@ -1175,7 +1186,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     private RequestFuture<Void> maybeAutoCommitOffsetsAsync() {
         if (autoCommitEnabled)
             return autoCommitOffsetsAsync();
-        return null;    
+        return null;
     }
 
     private class DefaultOffsetCommitCallback implements OffsetCommitCallback {

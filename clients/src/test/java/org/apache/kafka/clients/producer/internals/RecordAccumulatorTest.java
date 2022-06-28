@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.clients.producer.internals;
 
+import java.util.Optional;
 import org.apache.kafka.clients.ApiVersions;
 import org.apache.kafka.clients.NodeApiVersions;
 import org.apache.kafka.clients.producer.Callback;
@@ -414,7 +415,8 @@ public class RecordAccumulatorTest {
 
         final RecordAccumulator accum = new RecordAccumulator(logContext, batchSize,
             CompressionType.NONE, lingerMs, retryBackoffMs, deliveryTimeoutMs, metrics, metricGrpName, time, new ApiVersions(), null,
-            new BufferPool(totalSize, batchSize, metrics, time, metricGrpName));
+            new BufferPool(totalSize, batchSize, metrics, time, metricGrpName),
+            Optional.empty());
 
         long now = time.milliseconds();
         accum.append(topic, partition1, 0L, key, value, Record.EMPTY_HEADERS, null, maxBlockTimeMs, false, time.milliseconds(), cluster);
@@ -791,7 +793,8 @@ public class RecordAccumulatorTest {
         TransactionManager transactionManager = new TransactionManager(new LogContext(), null, 0, retryBackoffMs, apiVersions);
         RecordAccumulator accum = new RecordAccumulator(logContext, batchSize + DefaultRecordBatch.RECORD_BATCH_OVERHEAD,
             CompressionType.NONE, lingerMs, retryBackoffMs, deliveryTimeoutMs, metrics, metricGrpName, time, apiVersions, transactionManager,
-            new BufferPool(totalSize, batchSize, metrics, time, metricGrpName));
+            new BufferPool(totalSize, batchSize, metrics, time, metricGrpName),
+            Optional.empty());
         assertThrows(UnsupportedVersionException.class,
             () -> accum.append(topic, partition1, 0L, key, value, Record.EMPTY_HEADERS, null, 0, false, time.milliseconds(), cluster));
     }
@@ -1172,7 +1175,7 @@ public class RecordAccumulatorTest {
             int batchSize = 128;
             RecordAccumulator accum = new RecordAccumulator(logContext, batchSize, CompressionType.NONE, 0, 0L,
                 3200, config, metrics, "producer-metrics", time, new ApiVersions(), null,
-                new BufferPool(totalSize, batchSize, metrics, time, "producer-internal-metrics"));
+                new BufferPool(totalSize, batchSize, metrics, time, "producer-internal-metrics"), Optional.empty());
 
             byte[] largeValue = new byte[batchSize];
             int[] queueSizes = {1, 7, 2};
@@ -1394,6 +1397,7 @@ public class RecordAccumulatorTest {
             time,
             new ApiVersions(),
             txnManager,
-            new BufferPool(totalSize, batchSize, metrics, time, metricGrpName));
+            new BufferPool(totalSize, batchSize, metrics, time, metricGrpName),
+            Optional.empty());
     }
 }

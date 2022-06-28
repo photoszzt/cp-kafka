@@ -2582,6 +2582,8 @@ public class KafkaConsumerTest {
                 subscription,
                 metrics,
                 metricGroupPrefix,
+                Optional.empty(),
+                Optional.empty(),
                 time,
                 autoCommitEnabled,
                 autoCommitIntervalMs,
@@ -2608,7 +2610,8 @@ public class KafkaConsumerTest {
                 retryBackoffMs,
                 requestTimeoutMs,
                 IsolationLevel.READ_UNCOMMITTED,
-                new ApiVersions());
+                new ApiVersions(),
+                Optional.empty());
 
         return new KafkaConsumer<>(
                 loggerFactory,
@@ -2627,7 +2630,8 @@ public class KafkaConsumerTest {
                 requestTimeoutMs,
                 defaultApiTimeoutMs,
                 assignors,
-                groupId);
+                groupId,
+                true);
     }
 
     private static class FetchInfo {

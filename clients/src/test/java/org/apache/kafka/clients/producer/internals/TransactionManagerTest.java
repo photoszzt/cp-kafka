@@ -173,10 +173,12 @@ public class TransactionManagerTest {
         this.brokerNode = new Node(0, "localhost", 2211);
         this.accumulator = new RecordAccumulator(logContext, batchSize, CompressionType.NONE, 0, 0L,
                 deliveryTimeoutMs, metrics, metricGrpName, time, apiVersions, transactionManager,
-                new BufferPool(totalSize, batchSize, metrics, time, metricGrpName));
+                new BufferPool(totalSize, batchSize, metrics, time, metricGrpName),
+                Optional.empty());
 
         this.sender = new Sender(logContext, this.client, this.metadata, this.accumulator, true,
-                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(metrics), this.time, REQUEST_TIMEOUT,
+                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(metrics),
+                Optional.empty(), this.time, REQUEST_TIMEOUT,
                 50, transactionManager, apiVersions);
     }
 
@@ -685,10 +687,11 @@ public class TransactionManagerTest {
 
         RecordAccumulator accumulator = new RecordAccumulator(logContext, 16 * 1024, CompressionType.NONE, 0, 0L,
                 deliveryTimeout, metrics, "", time, apiVersions, transactionManager,
-                new BufferPool(1024 * 1024, 16 * 1024, metrics, time, ""));
+                new BufferPool(1024 * 1024, 16 * 1024, metrics, time, ""),
+                Optional.empty());
 
         Sender sender = new Sender(logContext, this.client, this.metadata, accumulator, false,
-                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(metrics), this.time, requestTimeout,
+                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(metrics), Optional.empty(), this.time, requestTimeout,
                 0, transactionManager, apiVersions);
 
         assertEquals(0, transactionManager.sequenceNumber(tp0).intValue());
@@ -3131,8 +3134,10 @@ public class TransactionManagerTest {
     public void testHealthyPartitionRetriesDuringEpochBump() throws InterruptedException {
         // Use a custom Sender to allow multiple inflight requests
         initializeTransactionManager(Optional.empty());
+        Metrics metrics = new Metrics(time);
         Sender sender = new Sender(logContext, this.client, this.metadata, this.accumulator, false,
-                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(new Metrics(time)), this.time,
+                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(metrics),
+                Optional.empty(), this.time,
                 REQUEST_TIMEOUT, 50, transactionManager, apiVersions);
         initializeIdempotentProducerId(producerId, epoch);
 
@@ -3255,8 +3260,10 @@ public class TransactionManagerTest {
     public void testFailedInflightBatchAfterEpochBump() throws InterruptedException {
         // Use a custom Sender to allow multiple inflight requests
         initializeTransactionManager(Optional.empty());
+        Metrics metrics = new Metrics(time);
         Sender sender = new Sender(logContext, this.client, this.metadata, this.accumulator, false,
-                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(new Metrics(time)), this.time,
+                MAX_REQUEST_SIZE, ACKS_ALL, MAX_RETRIES, new SenderMetricsRegistry(metrics),
+                Optional.empty(), this.time,
                 REQUEST_TIMEOUT, 50, transactionManager, apiVersions);
         initializeIdempotentProducerId(producerId, epoch);
 

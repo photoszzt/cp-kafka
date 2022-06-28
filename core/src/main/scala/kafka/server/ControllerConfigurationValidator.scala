@@ -19,10 +19,10 @@ package kafka.server
 
 import java.util
 import java.util.Properties
-
 import kafka.log.LogConfig
+import kafka.metrics.clientmetrics.ClientMetricsConfig
 import org.apache.kafka.common.config.ConfigResource
-import org.apache.kafka.common.config.ConfigResource.Type.{BROKER, TOPIC}
+import org.apache.kafka.common.config.ConfigResource.Type.{BROKER, CLIENT_METRICS, TOPIC}
 import org.apache.kafka.controller.ConfigurationValidator
 import org.apache.kafka.common.errors.{InvalidConfigurationException, InvalidRequestException}
 import org.apache.kafka.common.internals.Topic
@@ -108,6 +108,10 @@ class ControllerConfigurationValidator extends ConfigurationValidator {
             nullTopicConfigs.mkString(","))
         }
         LogConfig.validate(properties)
+      case CLIENT_METRICS =>
+        val props = new Properties()
+        config.entrySet().forEach(e => props.setProperty(e.getKey(), e.getValue()))
+        ClientMetricsConfig.validateConfig(resource.name(), props)
       case BROKER => validateBrokerName(resource.name())
       case _ => throwExceptionForUnknownResourceType(resource)
     }

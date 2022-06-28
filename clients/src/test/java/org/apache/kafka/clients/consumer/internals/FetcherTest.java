@@ -2467,9 +2467,10 @@ public class FetcherTest {
         Sensor throttleTimeSensor = Fetcher.throttleTimeSensor(metrics, metricsRegistry);
         Cluster cluster = TestUtils.singletonCluster("test", 1);
         Node node = cluster.nodes().get(0);
-        NetworkClient client = new NetworkClient(selector, metadata, "mock", Integer.MAX_VALUE,
+        String clientId = "mock";
+        NetworkClient client = new NetworkClient(selector, metadata, clientId, Integer.MAX_VALUE,
                 1000, 1000, 64 * 1024, 64 * 1024, 1000, 10 * 1000, 127 * 1000,
-                time, true, new ApiVersions(), throttleTimeSensor, new LogContext());
+                time, true, new ApiVersions(), throttleTimeSensor, Optional.empty(), new LogContext());
 
         ApiVersionsResponse apiVersionsResponse = ApiVersionsResponse.defaultApiVersionsResponse(
             400, ApiMessageType.ListenerType.ZK_BROKER);
@@ -3747,7 +3748,8 @@ public class FetcherTest {
                 retryBackoffMs,
                 requestTimeoutMs,
                 IsolationLevel.READ_UNCOMMITTED,
-                apiVersions) {
+                apiVersions,
+                Optional.empty()) {
             @Override
             protected FetchSessionHandler sessionHandler(int id) {
                 final FetchSessionHandler handler = super.sessionHandler(id);
@@ -5123,7 +5125,8 @@ public class FetcherTest {
                 retryBackoffMs,
                 requestTimeoutMs,
                 isolationLevel,
-                apiVersions);
+                apiVersions,
+                Optional.empty());
     }
 
     private void buildDependencies(MetricConfig metricConfig,
