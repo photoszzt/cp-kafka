@@ -22,6 +22,7 @@ buildscript {
     mavenCentral()
   }
   apply from: "$rootDir/gradle/dependencies.gradle"
+  apply from: "$rootDir/gradle/dependenciesOverrides.gradle"
 
   dependencies {
     // For Apache Rat plugin to ignore non-Git files
