@@ -109,8 +109,7 @@ public class OtlpMetricsReporter implements MetricsReporter {
                 metrics = enhanceMetrics(metrics, labels);
             }
 
-            //grpcService.export(metrics);
-            log.info("exportMetrics - metrics {}", metrics);
+            grpcService.export(metrics);
         };
     }
 
