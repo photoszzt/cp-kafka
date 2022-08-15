@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 
 /**
@@ -108,7 +109,8 @@ public class OtlpMetricsReporter implements MetricsReporter {
                 metrics = enhanceMetrics(metrics, labels);
             }
 
-            grpcService.export(metrics);
+            //grpcService.export(metrics);
+            log.info("exportMetrics - metrics {}", metrics);
         };
     }
 
@@ -146,32 +148,36 @@ public class OtlpMetricsReporter implements MetricsReporter {
     }
 
     public static class ClientLabels {
-        public static final String RESOURCE_LABEL_PREFIX = "";
-        public static final String CLIENT_ID = RESOURCE_LABEL_PREFIX + "client.id";
-        public static final String CLIENT_INSTANCE_ID = RESOURCE_LABEL_PREFIX + "client.instance.id";
-        public static final String CLIENT_SOFTWARE_NAME = RESOURCE_LABEL_PREFIX + "client.software.name";
-        public static final String CLIENT_SOFTWARE_VERSION = RESOURCE_LABEL_PREFIX + "client.software.version";
-        public static final String CLIENT_SOURCE_ADDRESS = RESOURCE_LABEL_PREFIX + "client.source.address";
-        public static final String PRINCIPAL = RESOURCE_LABEL_PREFIX + "principal";
+
+        public static final String CLIENT_ID = "client.id";
+        public static final String CLIENT_INSTANCE_ID = "client.instance.id";
+        public static final String CLIENT_SOFTWARE_NAME = "client.software.name";
+        public static final String CLIENT_SOFTWARE_VERSION = "client.software.version";
+        public static final String CLIENT_SOURCE_ADDRESS = "client.source.address";
+        public static final String PRINCIPAL = "principal";
     }
 
     public Map<String, String> getClientLabels(AuthorizableRequestContext context, ClientTelemetryPayload payload) {
         RequestContext requestContext = (RequestContext) context;
 
         Map<String, String> labels = new HashMap<>();
-        labels.put(ClientLabels.CLIENT_ID, context.clientId());
-        labels.put(ClientLabels.CLIENT_INSTANCE_ID, payload.clientInstanceId().toString());
-        labels.put(ClientLabels.CLIENT_SOFTWARE_NAME, requestContext.clientInformation.softwareName());
-        labels.put(ClientLabels.CLIENT_SOFTWARE_VERSION, requestContext.clientInformation.softwareVersion());
-        labels.put(ClientLabels.CLIENT_SOURCE_ADDRESS, requestContext.clientAddress().getHostAddress());
-        labels.put(ClientLabels.PRINCIPAL, requestContext.principal().getName());
+        putIfNotNull(labels, ClientLabels.CLIENT_ID, context.clientId());
+        putIfNotNull(labels, ClientLabels.CLIENT_INSTANCE_ID, payload.clientInstanceId().toString());
+        putIfNotNull(labels, ClientLabels.CLIENT_SOFTWARE_NAME, requestContext.clientInformation.softwareName());
+        putIfNotNull(labels, ClientLabels.CLIENT_SOFTWARE_VERSION, requestContext.clientInformation.softwareVersion());
+        putIfNotNull(labels, ClientLabels.CLIENT_SOURCE_ADDRESS, requestContext.clientAddress().getHostAddress());
+        putIfNotNull(labels, ClientLabels.PRINCIPAL, requestContext.principal().getName());
 
 
         // Include Kafka cluster and broker id from the MetricsContext
-        labels.put(KAFKA_CLUSTER_ID, metricsContext.get(KAFKA_CLUSTER_ID));
-        labels.put(KAFKA_BROKER_ID, metricsContext.get(KAFKA_BROKER_ID));
+        putIfNotNull(labels, KAFKA_CLUSTER_ID, metricsContext.get(KAFKA_CLUSTER_ID));
+        putIfNotNull(labels, KAFKA_BROKER_ID, metricsContext.get(KAFKA_BROKER_ID));
 
         return labels;
+    }
+
+    public static void putIfNotNull(Map<String, String> map, String key, String value) {
+        Optional.ofNullable(value).ifPresent(v -> map.put(key, v));
     }
 
     @Override
