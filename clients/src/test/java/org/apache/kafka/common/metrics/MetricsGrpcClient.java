@@ -118,6 +118,11 @@ public class MetricsGrpcClient implements AutoCloseable {
      */
     @Override
     public void close()  {
+        if(grpcChannel == null) {
+            log.info("gRPC service is not initialize, no channel to shut down");
+            return;
+        }
+
         try {
             log.info("Shutting down gRPC channel at {}", endpoint);
             grpcChannel.shutdown().awaitTermination(GRPC_CHANNEL_TIMEOUT, TimeUnit.SECONDS);
