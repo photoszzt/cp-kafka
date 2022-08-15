@@ -367,8 +367,7 @@ public class ClientTelemetryUtils {
             ByteBuffer metricsBuffer = (ByteBuffer) serializedMetricsData.flip();
             metricsData = MetricsData.parseFrom(metricsBuffer);
         } catch (IOException e) {
-            log.warn("Unable to parse MetricsData payload ", e);
-            throw new RuntimeException(e);
+            log.warn("Unable to parse MetricsData payload: {} ", e.getMessage());
         }
         return metricsData;
     }
