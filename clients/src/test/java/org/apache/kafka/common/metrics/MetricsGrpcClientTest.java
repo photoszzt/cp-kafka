@@ -48,10 +48,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class MetricsGrpcClientTest {
-    MetricsGrpcClient client;
-    ManagedChannel channel;
-    Server server;
-    LinkedBlockingDeque<ExportMetricsServiceRequest> receivedRequests;
+    private MetricsGrpcClient client;
+    private ManagedChannel channel;
+    private Server server;
+    private LinkedBlockingDeque<ExportMetricsServiceRequest> receivedRequests;
 
     @BeforeEach
     void setUp() throws IOException {

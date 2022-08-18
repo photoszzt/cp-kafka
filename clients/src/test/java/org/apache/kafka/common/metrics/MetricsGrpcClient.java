@@ -102,7 +102,7 @@ public class MetricsGrpcClient implements AutoCloseable {
 
     /**
      * Exports a ExportMetricsServiceRequest to an external endpoint
-     * @param resourceMetrics metrics to exports
+     * @param resourceMetrics metrics to export
      */
     public void export(List<ResourceMetrics> resourceMetrics) {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
