@@ -77,11 +77,6 @@ public class OtlpMetricsReporter implements MetricsReporter {
 
 
     @Override
-    public void reconfigure(Map<String, ?> configs) {
-        MetricsReporter.super.reconfigure(configs);
-    }
-
-    @Override
     public void close() {
         grpcService.close();
     }
