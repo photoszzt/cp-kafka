@@ -107,19 +107,13 @@ public class MetricsGrpcClient implements AutoCloseable {
         return grpcChannel.getState(true);
     }
 
-
     @VisibleForTesting
-    public void setChannel(ManagedChannel channel) {
-        grpcChannel = channel;
-    }
-
-    @VisibleForTesting
-    public String getEndpoint() {
+    String getEndpoint() {
         return endpoint;
     }
 
     @VisibleForTesting
-    public ManagedChannel getGrpcChannel() {
+    ManagedChannel getGrpcChannel() {
         return grpcChannel;
     }
 }
