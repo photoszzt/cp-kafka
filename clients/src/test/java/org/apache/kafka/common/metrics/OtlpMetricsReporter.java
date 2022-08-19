@@ -49,16 +49,15 @@ public class OtlpMetricsReporter implements MetricsReporter {
 
     private static final Logger log = LoggerFactory.getLogger(OtlpMetricsReporter.class);
 
-    private final MetricsGrpcClient grpcService;
+    private static final String CLIENT_LABELS_CONFIG = "confluent.telemetry.clientMetrics.appendClientLabels";
+
+    private boolean appendClientLabels = true;
 
     private static final String GRPC_ENDPOINT_CONFIG = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
     private static final int DEFAULT_GRPC_PORT = 4317;
 
-    private boolean appendClientLabels = true;
-
-    private static final String APPEND_CLIENT_LABELS = "APPEND_CLIENT_LABELS";
-
+    private final MetricsGrpcClient grpcService;
 
     // Kafka-specific labels
     private Map<String, String> metricsContext;
@@ -89,7 +88,7 @@ public class OtlpMetricsReporter implements MetricsReporter {
 
     @Override
     public void configure(Map<String, ?> configs) {
-        Object clientLabelsConfig = configs.get(APPEND_CLIENT_LABELS);
+        Object clientLabelsConfig = configs.get(CLIENT_LABELS_CONFIG);
         if (clientLabelsConfig != null) {
             appendClientLabels = (boolean) clientLabelsConfig;
         }
@@ -112,13 +111,13 @@ public class OtlpMetricsReporter implements MetricsReporter {
         return (context, payload) -> {
 
             if (payload == null || payload.data() == null) {
-                log.warn("exportMetrics - Client did not include payload when pushing to broker, suspended export");
+                log.warn("exportMetrics - Client did not include payload when pushing to broker, skipping export");
                 return;
             }
 
             MetricsData metricsData = ClientTelemetryUtils.deserializeMetricsData(payload.data());
             if (metricsData == null || metricsData.getResourceMetricsCount() == 0) {
-                log.warn("exportMetrics - No metrics available, suspended export");
+                log.warn("exportMetrics - No metrics available, skipping export");
                 return;
             }
 
