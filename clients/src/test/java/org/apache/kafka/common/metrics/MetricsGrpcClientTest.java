@@ -41,7 +41,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,8 +80,7 @@ class MetricsGrpcClientTest {
 
         server.start();
 
-        client = new MetricsGrpcClient();
-        client.setChannel(channel);
+        client = new MetricsGrpcClient(channel);
     }
 
     @AfterEach
@@ -91,12 +89,7 @@ class MetricsGrpcClientTest {
     }
 
     @Test
-    void testInitializeGrpcClient() {
-        // should be null if client is not initialized
-        assertNull(client.getGrpcClient());
-
-        client.initialize();
-        assertNotNull(client.getGrpcClient());
+    void testInitializedGrpcClient() {
         assertEquals(client.getGrpcChannel(), channel);
         assertEquals(client.getEndpoint(), channel.authority());
 
@@ -110,7 +103,7 @@ class MetricsGrpcClientTest {
         multipleMetrics.add(generateMetrics("test-metric2", 10));
         multipleMetrics.add(generateMetrics("test-metric3", 15));
 
-        client.initialize();
+        //client.initialize();
         client.export(multipleMetrics);
         client.export(singleMetric);
 
@@ -138,7 +131,7 @@ class MetricsGrpcClientTest {
 
     @Test
     void testGrpcChannelClose() {
-        client.initialize();
+        //client.initialize();
         assertFalse(client.getGrpcChannel().isShutdown());
 
         client.close();

@@ -16,19 +16,24 @@
  */
 package org.apache.kafka.common.metrics;
 
-import com.google.common.annotations.VisibleForTesting;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.MetricsData;
 import io.opentelemetry.proto.resource.v1.Resource;
 
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.server.authorizer.AuthorizableRequestContext;
 import org.apache.kafka.common.requests.RequestContext;
 import org.apache.kafka.clients.ClientTelemetryUtils;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,19 +49,42 @@ public class OtlpMetricsReporter implements MetricsReporter {
 
     private static final Logger log = LoggerFactory.getLogger(OtlpMetricsReporter.class);
 
-    private MetricsGrpcClient grpcService;
+    private final MetricsGrpcClient grpcService;
 
-    public boolean appendClientLabels = true;
+    private static final String GRPC_ENDPOINT_CONFIG = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
-    public static final String APPEND_CLIENT_LABELS = "APPEND_CLIENT_LABELS";
+    private static final int DEFAULT_GRPC_PORT = 4317;
+
+    private boolean appendClientLabels = true;
+
+    private static final String APPEND_CLIENT_LABELS = "APPEND_CLIENT_LABELS";
+
 
     // Kafka-specific labels
-    public Map<String, String> metricsContext;
-    public static final String KAFKA_BROKER_ID = "kafka.broker.id";
-    public static final String KAFKA_CLUSTER_ID = "kafka.cluster.id";
+    private Map<String, String> metricsContext;
+    private static final String KAFKA_BROKER_ID = "kafka.broker.id";
+    private static final String KAFKA_CLUSTER_ID = "kafka.cluster.id";
 
+
+    /**
+     * Initializes the MetricsReporter with a {@link MetricsGrpcClient} at an endpoint defined by the
+     * {@value GRPC_ENDPOINT_CONFIG} environment variable
+     */
     public OtlpMetricsReporter() {
-        grpcService = new MetricsGrpcClient();
+        String grpcEndpoint = System.getenv(GRPC_ENDPOINT_CONFIG);
+
+        if (Utils.isBlank(grpcEndpoint)) {
+            log.info("environment variable {} is not set", GRPC_ENDPOINT_CONFIG);
+            try {
+                grpcEndpoint = InetAddress.getLocalHost().getHostAddress() + ":" + DEFAULT_GRPC_PORT;
+            } catch (UnknownHostException e) {
+                log.warn("Failed to get local host address: {}", e.getMessage());
+            }
+        }
+
+        ManagedChannel grpcChannel = ManagedChannelBuilder.forTarget(grpcEndpoint).usePlaintext().build();
+
+        grpcService = new MetricsGrpcClient(grpcChannel);
     }
 
     @Override
@@ -65,8 +93,6 @@ public class OtlpMetricsReporter implements MetricsReporter {
         if (clientLabelsConfig != null) {
             appendClientLabels = (boolean) clientLabelsConfig;
         }
-
-        grpcService.initialize();
     }
 
 
@@ -104,6 +130,7 @@ public class OtlpMetricsReporter implements MetricsReporter {
                 metrics = enhanceMetrics(metrics, labels);
             }
 
+            log.info("sending metrics to client");
             grpcService.export(metrics);
         };
     }
@@ -183,8 +210,4 @@ public class OtlpMetricsReporter implements MetricsReporter {
     @Override
     public void metricRemoval(KafkaMetric metric) {}
 
-    @VisibleForTesting
-    public MetricsGrpcClient getGrpcService() {
-        return grpcService;
-    }
 }

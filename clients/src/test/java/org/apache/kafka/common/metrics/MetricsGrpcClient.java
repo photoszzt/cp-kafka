@@ -20,26 +20,22 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.kafka.common.utils.Utils;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
-import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
-import java.net.InetAddress;
 import java.util.List;
 
 
 public class MetricsGrpcClient implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(MetricsGrpcClient.class);
 
-    public final StreamObserver<ExportMetricsServiceResponse> streamObserver =
+    private final StreamObserver<ExportMetricsServiceResponse> streamObserver =
             new StreamObserver<ExportMetricsServiceResponse>() {
 
         @Override
@@ -50,7 +46,7 @@ public class MetricsGrpcClient implements AutoCloseable {
         @Override
         public void onError(Throwable t) {
             log.debug("Unable to export metrics request to {}. gRPC Connectivity in: {}:  {}",
-                    endpoint, getChannelState(), t.getCause().getMessage());
+                    endpoint, getChannelState(), t.getCause());
         }
 
         @Override
@@ -59,44 +55,24 @@ public class MetricsGrpcClient implements AutoCloseable {
         }
     };
 
-    public static final String GRPC_HOST_CONFIG = "OTEL_EXPORTER_OTLP_ENDPOINT";
+    private static final int GRPC_CHANNEL_TIMEOUT = 30;
 
-    public static final int DEFAULT_GRPC_PORT = 4317;
-
-    public static final int GRPC_CHANNEL_TIMEOUT = 30;
-
-    private MetricsServiceGrpc.MetricsServiceStub grpcClient;
+    private final MetricsServiceGrpc.MetricsServiceStub grpcClient;
 
     private ManagedChannel grpcChannel;
 
-    private String endpoint;
+    private final String endpoint;
 
 
     /**
-     * Start a {@link ManagedChannel} and a {@link MetricsServiceGrpc} at an endpoint defined by the
-     * {@value GRPC_HOST_CONFIG} environment variable
+     * Starts a {@link MetricsServiceGrpc} at with a given gRPC {@link ManagedChannel}
      */
-    public void initialize() {
-        if (grpcChannel == null) {
-            String grpcHost = System.getenv(GRPC_HOST_CONFIG);
-
-            if (Utils.isBlank(grpcHost)) {
-                log.info("environment variable {} is not set", GRPC_HOST_CONFIG);
-
-                try {
-                    grpcHost = InetAddress.getLocalHost().getHostAddress();
-                } catch (UnknownHostException e) {
-                    log.warn("Failed to get local host address: {}", e.getMessage());
-                }
-            }
-
-            grpcChannel = ManagedChannelBuilder.forAddress(grpcHost, DEFAULT_GRPC_PORT).usePlaintext().build();
-        }
+    public MetricsGrpcClient(ManagedChannel channel) {
+        grpcChannel = channel;
+        grpcClient = MetricsServiceGrpc.newStub(channel);
 
         endpoint = grpcChannel.authority();
-        grpcClient = MetricsServiceGrpc.newStub(grpcChannel);
-
-        log.info("Started gRPC channel for endpoint  {}", endpoint);
+        log.info("Started gRPC Client for endpoint  {}", endpoint);
     }
 
 
@@ -118,11 +94,6 @@ public class MetricsGrpcClient implements AutoCloseable {
      */
     @Override
     public void close()  {
-        if(grpcChannel == null) {
-            log.info("gRPC service is not initialize, no channel to shut down");
-            return;
-        }
-
         try {
             log.info("Shutting down gRPC channel at {}", endpoint);
             grpcChannel.shutdown().awaitTermination(GRPC_CHANNEL_TIMEOUT, TimeUnit.SECONDS);
@@ -140,11 +111,6 @@ public class MetricsGrpcClient implements AutoCloseable {
     @VisibleForTesting
     public void setChannel(ManagedChannel channel) {
         grpcChannel = channel;
-    }
-
-    @VisibleForTesting
-    public MetricsServiceGrpc.MetricsServiceStub getGrpcClient() {
-        return grpcClient;
     }
 
     @VisibleForTesting
