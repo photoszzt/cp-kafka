@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.List;
 
 
-public class MetricsGrpcClient implements AutoCloseable {
+class MetricsGrpcClient implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(MetricsGrpcClient.class);
 
     private final StreamObserver<ExportMetricsServiceResponse> streamObserver =

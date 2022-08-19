@@ -18,7 +18,6 @@ package org.apache.kafka.common.metrics;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
@@ -51,11 +50,11 @@ public class OtlpMetricsReporter implements MetricsReporter {
 
     private static final String CLIENT_LABELS_CONFIG = "confluent.telemetry.clientMetrics.appendClientLabels";
 
-    private boolean appendClientLabels = true;
-
     private static final String GRPC_ENDPOINT_CONFIG = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
     private static final int DEFAULT_GRPC_PORT = 4317;
+
+    private boolean appendClientLabels = true;
 
     private final MetricsGrpcClient grpcService;
 
