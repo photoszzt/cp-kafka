@@ -44,6 +44,7 @@ import org.apache.kafka.streams.errors.TaskMigratedException;
 import org.apache.kafka.streams.processor.TaskId;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -66,10 +67,13 @@ public class StreamsProducer {
     private final Logger log;
     private final String logPrefix;
 
+    private final ArrayList<Long> commitLatencies;
+
     private final Map<String, Object> eosV2ProducerConfigs;
     private final KafkaClientSupplier clientSupplier;
     private final StreamThread.ProcessingMode processingMode;
     private final Time time;
+    private final String threadId;
 
     private Producer<byte[], byte[]> producer;
     private boolean transactionInFlight = false;
@@ -91,6 +95,8 @@ public class StreamsProducer {
         this.time = Objects.requireNonNull(time, "time");
 
         processingMode = StreamThread.processingMode(config);
+        commitLatencies = new ArrayList<>(1024);
+        this.threadId = threadId;
 
         final Map<String, Object> producerConfigs;
         switch (processingMode) {
@@ -285,6 +291,7 @@ public class StreamsProducer {
         if (!eosEnabled()) {
             throw new IllegalStateException(formatException("Exactly-once is not enabled"));
         }
+        final long cmStart = time.nanoseconds();
         maybeBeginTransaction();
         try {
             // EOS-v2 assumes brokers are on version 2.5+ and thus can understand the full set of consumer group metadata
@@ -293,6 +300,13 @@ public class StreamsProducer {
             producer.sendOffsetsToTransaction(offsets, maybeDowngradedGroupMetadata);
             producer.commitTransaction();
             transactionInFlight = false;
+            final long cmEnd = time.nanoseconds();
+            final long dur = cmEnd - cmStart;
+            if (commitLatencies.size() == 1024) {
+                System.out.println(String.format("{\"%s-commitLatency\": ", threadId) + commitLatencies + "}");
+                commitLatencies.clear();
+            }
+            commitLatencies.add(dur);
         } catch (final ProducerFencedException | InvalidProducerEpochException | CommitFailedException error) {
             throw new TaskMigratedException(
                 formatException("Producer got fenced trying to commit a transaction"),
@@ -363,6 +377,9 @@ public class StreamsProducer {
     }
 
     void close() {
+        if (commitLatencies.size() > 0) {
+            System.out.println(String.format("{\"%s-commitLatency\": ", threadId) + commitLatencies + "}");
+        }
         producer.close();
     }
 
