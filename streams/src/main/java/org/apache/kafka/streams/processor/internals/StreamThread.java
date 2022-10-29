@@ -251,7 +251,7 @@ public class StreamThread extends Thread {
         }
     }
 
-    private void appendLat(ArrayList<Long> lat, long ts, String tag) {
+    private void appendLat(final ArrayList<Long> lat, final long ts, final String tag) {
         if (lat.size() == STAT_LEN) {
             System.out.println("{\"" + tag + "\": " + lat + "}");
             lat.clear();
@@ -259,7 +259,7 @@ public class StreamThread extends Thread {
         lat.add(ts);
     }
 
-    private void appendLatDouble(ArrayList<Double> lat, double ts, String tag) {
+    private void appendLatDouble(final ArrayList<Double> lat, final double ts, final String tag) {
         if (lat.size() == STAT_LEN) {
             System.out.println(tag + lat + "}");
             lat.clear();
@@ -267,7 +267,13 @@ public class StreamThread extends Thread {
         lat.add(ts);
     }
 
-    private void printRemain(ArrayList<Long> lat, String tag) {
+    private void printRemain(final ArrayList<Long> lat, final String tag) {
+        if (lat.size() > 0) {
+            System.out.println(tag + lat + "}");
+        }
+    }
+
+    private void printRemainDouble(final ArrayList<Double> lat, final String tag) {
         if (lat.size() > 0) {
             System.out.println(tag + lat + "}");
         }
@@ -1196,6 +1202,9 @@ public class StreamThread extends Thread {
         } catch (final Throwable e) {
             log.error("Failed to close restore consumer due to the following error:", e);
         }
+        printRemainDouble(avgCommitLatMs, avgCommitLatTag);
+        printRemain(durThisLastCmtMs, durThisLastCmtMsTag);
+        printRemain(execIntervalMs, execIntrTag);
         streamsMetrics.removeAllThreadLevelSensors(getName());
         streamsMetrics.removeAllThreadLevelMetrics(getName());
 
