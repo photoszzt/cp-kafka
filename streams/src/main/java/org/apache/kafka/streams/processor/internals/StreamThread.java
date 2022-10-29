@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -249,6 +250,36 @@ public class StreamThread extends Thread {
             return state.isAlive();
         }
     }
+
+    private void appendLat(ArrayList<Long> lat, long ts, String tag) {
+        if (lat.size() == STAT_LEN) {
+            System.out.println("{\"" + tag + "\": " + lat + "}");
+            lat.clear();
+        }
+        lat.add(ts);
+    }
+
+    private void appendLatDouble(ArrayList<Double> lat, double ts, String tag) {
+        if (lat.size() == STAT_LEN) {
+            System.out.println(tag + lat + "}");
+            lat.clear();
+        }
+        lat.add(ts);
+    }
+
+    private void printRemain(ArrayList<Long> lat, String tag) {
+        if (lat.size() > 0) {
+            System.out.println(tag + lat + "}");
+        }
+    }
+
+    private static final int STAT_LEN = 1024;
+    private final ArrayList<Long> durThisLastCmtMs;
+    private final ArrayList<Long> execIntervalMs;
+    private final ArrayList<Double> avgCommitLatMs;
+    private final String avgCommitLatTag;
+    private final String execIntrTag;
+    private final String durThisLastCmtMsTag;
 
     private final Time time;
     private final Logger log;
@@ -549,6 +580,12 @@ public class StreamThread extends Thread {
 
         this.numIterations = 1;
         this.eosEnabled = eosEnabled(config);
+        this.durThisLastCmtMs = new ArrayList<>(STAT_LEN);
+        this.execIntervalMs = new ArrayList<>(STAT_LEN);
+        this.avgCommitLatMs = new ArrayList<>(STAT_LEN);
+        this.avgCommitLatTag = "{\"" + threadId + "-avgCommitLatMs\": ";
+        this.execIntrTag = "{\"" + threadId + "-execIntrMs\": ";
+        this.durThisLastCmtMsTag = "{\"" + threadId + "-durThisLastCmtMs\": ";
     }
 
     private static final class InternalConsumerConfig extends ConsumerConfig {
@@ -819,7 +856,9 @@ public class StreamThread extends Thread {
                 final long commitLatency = Math.max(now - beforeCommitMs, 0);
                 totalCommitLatency += commitLatency;
                 if (committed > 0) {
-                    commitSensor.record(commitLatency / (double) committed, now);
+                    final double commitLat = commitLatency / (double) committed;
+                    appendLatDouble(avgCommitLatMs, commitLat, avgCommitLatTag);
+                    commitSensor.record(commitLat, now);
 
                     if (log.isDebugEnabled()) {
                         log.debug("Committed all active tasks {} and standby tasks {} in {}ms",
@@ -1063,6 +1102,8 @@ public class StreamThread extends Thread {
     int maybeCommit() {
         final int committed;
         if (now - lastCommitMs > commitTimeMs) {
+            final long execDur = time.milliseconds() - lastCommitMs;
+            appendLat(execIntervalMs, execDur, execIntrTag);
             if (log.isDebugEnabled()) {
                 log.debug("Committing all active tasks {} and standby tasks {} since {}ms has elapsed (commit interval is {}ms)",
                           taskManager.activeTaskIds(), taskManager.standbyTaskIds(), now - lastCommitMs, commitTimeMs);
@@ -1085,6 +1126,8 @@ public class StreamThread extends Thread {
                 log.debug("Unable to commit as we are in the middle of a rebalance, will try again when it completes.");
             } else {
                 now = time.milliseconds();
+                final long durThisLastMs = now - lastCommitMs;
+                appendLat(durThisLastCmtMs, durThisLastMs, durThisLastCmtMsTag); 
                 lastCommitMs = now;
             }
         } else {

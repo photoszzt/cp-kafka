@@ -29,10 +29,14 @@ public class KafkaProducerMetrics implements AutoCloseable {
 
     public static final String GROUP = "producer-metrics";
     private static final String FLUSH = "flush";
+    private static final String FLUSH_TAG = "\"{" + FLUSH + "\": ";
     private static final String TXN_INIT = "txn-init";
     private static final String TXN_BEGIN = "txn-begin";
+    private static final String TXN_BEGIN_TAG = "\"{" + TXN_BEGIN + "\": ";
     private static final String TXN_SEND_OFFSETS = "txn-send-offsets";
+    private static final String TXN_SEND_OFFSETS_TAG = "\"{" + TXN_SEND_OFFSETS + "\": ";
     private static final String TXN_COMMIT = "txn-commit";
+    private static final String TXN_COMMIT_TAG = "\"{" + TXN_COMMIT + "\": ";
     private static final String TXN_ABORT = "txn-abort";
     private static final String TOTAL_TIME_SUFFIX = "-time-ns-total";
     private static final int STAT_LEN = 1024;
@@ -114,10 +118,16 @@ public class KafkaProducerMetrics implements AutoCloseable {
 
     private void appendLat(ArrayList<Long> lat, long ts, String tag) {
         if (lat.size() == STAT_LEN) {
-            System.out.println("{\"" + tag + "\": " + lat + "}");
+            System.out.println(tag + lat + "}");
             lat.clear();
         }
         lat.add(ts);
+    }
+
+    private void printRemain(ArrayList<Long> lat, String tag) {
+        if (lat.size() > 0) {
+            System.out.println(tag + lat + "}");
+        }
     }
 
     @Override
@@ -128,11 +138,15 @@ public class KafkaProducerMetrics implements AutoCloseable {
         removeMetric(TXN_SEND_OFFSETS);
         removeMetric(TXN_COMMIT);
         removeMetric(TXN_ABORT);
+        printRemain(flushLat, FLUSH_TAG);
+        printRemain(beginTxnLat, TXN_BEGIN_TAG);
+        printRemain(sendOffsetsLat, TXN_SEND_OFFSETS_TAG);
+        printRemain(commitTxnLat, TXN_COMMIT_TAG);
     }
 
     public void recordFlush(long duration) {
         flushTimeSensor.record(duration);
-        appendLat(flushLat, duration, FLUSH);
+        appendLat(flushLat, duration, FLUSH_TAG);
         // flushAvgTimeSensor.record(duration);
     }
 
@@ -143,19 +157,19 @@ public class KafkaProducerMetrics implements AutoCloseable {
     public void recordBeginTxn(long duration) {
         beginTxnTimeSensor.record(duration);
         //beginTxnAvgTimeSensor.record(duration);
-        appendLat(beginTxnLat, duration, TXN_BEGIN);
+        appendLat(beginTxnLat, duration, TXN_BEGIN_TAG);
     }
 
     public void recordSendOffsets(long duration) {
         sendOffsetsSensor.record(duration);
         //sendOffsetsAvgSensor.record(duration);
-        appendLat(sendOffsetsLat, duration, TXN_SEND_OFFSETS);
+        appendLat(sendOffsetsLat, duration, TXN_SEND_OFFSETS_TAG);
     }
 
     public void recordCommitTxn(long duration) {
         commitTxnSensor.record(duration);
         //commitTxnAvgSensor.record(duration);
-        appendLat(commitTxnLat, duration, TXN_COMMIT);
+        appendLat(commitTxnLat, duration, TXN_COMMIT_TAG);
     }
 
     public void recordAbortTxn(long duration) {

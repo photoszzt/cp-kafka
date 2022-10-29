@@ -68,6 +68,7 @@ public class StreamsProducer {
     private final String logPrefix;
 
     private final ArrayList<Long> commitLatencies;
+    private final String commitLatTag;
 
     private final Map<String, Object> eosV2ProducerConfigs;
     private final KafkaClientSupplier clientSupplier;
@@ -97,6 +98,7 @@ public class StreamsProducer {
         processingMode = StreamThread.processingMode(config);
         commitLatencies = new ArrayList<>(1024);
         this.threadId = threadId;
+        this.commitLatTag = String.format("{\"%s-commitLat\": ", threadId);
 
         final Map<String, Object> producerConfigs;
         switch (processingMode) {
@@ -303,7 +305,7 @@ public class StreamsProducer {
             final long cmEnd = time.nanoseconds();
             final long dur = cmEnd - cmStart;
             if (commitLatencies.size() == 1024) {
-                System.out.println(String.format("{\"%s-commitLatency\": ", threadId) + commitLatencies + "}");
+                System.out.println(this.commitLatTag + commitLatencies + "}");
                 commitLatencies.clear();
             }
             commitLatencies.add(dur);
