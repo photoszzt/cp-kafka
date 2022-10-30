@@ -253,7 +253,7 @@ public class StreamThread extends Thread {
 
     private void appendLat(final ArrayList<Long> lat, final long ts, final String tag) {
         if (lat.size() == STAT_LEN) {
-            System.out.println("{\"" + tag + "\": " + lat + "}");
+            System.out.println(tag + lat + "}");
             lat.clear();
         }
         lat.add(ts);

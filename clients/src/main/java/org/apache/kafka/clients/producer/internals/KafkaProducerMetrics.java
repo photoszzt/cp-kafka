@@ -29,14 +29,14 @@ public class KafkaProducerMetrics implements AutoCloseable {
 
     public static final String GROUP = "producer-metrics";
     private static final String FLUSH = "flush";
-    private static final String FLUSH_TAG = "\"{" + FLUSH + "\": ";
+    private static final String FLUSH_TAG = "{\"" + FLUSH + "\": ";
     private static final String TXN_INIT = "txn-init";
     private static final String TXN_BEGIN = "txn-begin";
-    private static final String TXN_BEGIN_TAG = "\"{" + TXN_BEGIN + "\": ";
+    private static final String TXN_BEGIN_TAG = "{\"" + TXN_BEGIN + "\": ";
     private static final String TXN_SEND_OFFSETS = "txn-send-offsets";
-    private static final String TXN_SEND_OFFSETS_TAG = "\"{" + TXN_SEND_OFFSETS + "\": ";
+    private static final String TXN_SEND_OFFSETS_TAG = "{\"" + TXN_SEND_OFFSETS + "\": ";
     private static final String TXN_COMMIT = "txn-commit";
-    private static final String TXN_COMMIT_TAG = "\"{" + TXN_COMMIT + "\": ";
+    private static final String TXN_COMMIT_TAG = "{\"" + TXN_COMMIT + "\": ";
     private static final String TXN_ABORT = "txn-abort";
     private static final String TOTAL_TIME_SUFFIX = "-time-ns-total";
     private static final int STAT_LEN = 1024;

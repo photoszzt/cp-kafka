@@ -74,7 +74,6 @@ public class StreamsProducer {
     private final KafkaClientSupplier clientSupplier;
     private final StreamThread.ProcessingMode processingMode;
     private final Time time;
-    private final String threadId;
 
     private Producer<byte[], byte[]> producer;
     private boolean transactionInFlight = false;
@@ -97,8 +96,7 @@ public class StreamsProducer {
 
         processingMode = StreamThread.processingMode(config);
         commitLatencies = new ArrayList<>(1024);
-        this.threadId = threadId;
-        this.commitLatTag = String.format("{\"%s-commitLat\": ", threadId);
+        this.commitLatTag = String.format("{\"%s-commitLatNs\": ", threadId);
 
         final Map<String, Object> producerConfigs;
         switch (processingMode) {
@@ -380,7 +378,7 @@ public class StreamsProducer {
 
     void close() {
         if (commitLatencies.size() > 0) {
-            System.out.println(String.format("{\"%s-commitLatency\": ", threadId) + commitLatencies + "}");
+            System.out.println(commitLatTag + commitLatencies + "}");
         }
         producer.close();
     }
